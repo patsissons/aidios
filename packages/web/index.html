@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aidios - Infinite Jukebox</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>aidios</h1>
+    <p class="subtitle">your music, forever</p>
+  </header>
+
+  <main>
+    <!-- Upload state -->
+    <section id="upload-section">
+      <div class="upload-zone" id="upload-zone">
+        <p>Drop an audio file here or click to select</p>
+        <input type="file" id="file-input" accept="audio/*,video/*" />
+      </div>
+      <div id="upload-progress" class="progress-container" hidden>
+        <div class="progress-bar" id="progress-bar"></div>
+        <p id="progress-text">Uploading...</p>
+      </div>
+    </section>
+
+    <!-- Player state -->
+    <section id="player-section" hidden>
+      <div class="controls">
+        <button id="play-btn" class="play-btn">Play</button>
+        <button id="tune-btn" class="tune-btn">Tune</button>
+        <div class="time-display">
+          <span id="listen-time">00:00</span>
+          <span class="separator">|</span>
+          <span id="beat-count">0</span> beats
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="viz-canvas" width="900" height="600"></canvas>
+      </div>
+
+    </section>
+
+    <!-- Tuning panel (floats in main, outside player-section) -->
+    <aside id="tune-panel" class="tune-panel" hidden>
+      <h3>Fine tune your endless song</h3>
+
+      <label>
+        Branch Similarity Threshold: <span id="thresh-val">20</span>
+        <input type="range" id="thresh-slider" min="2" max="80" value="20" />
+        <span class="range-labels"><span>Higher Quality</span><span>More Branches</span></span>
+      </label>
+
+      <label>
+        Branch Probability: <span id="prob-min-val">18</span>% to <span id="prob-max-val">50</span>%
+        <input type="range" id="prob-min-slider" min="0" max="100" value="18" />
+        <input type="range" id="prob-max-slider" min="0" max="100" value="50" />
+        <span class="range-labels"><span>Low</span><span>High</span></span>
+      </label>
+
+      <label>
+        Ramp-up Speed: <span id="ramp-val">18</span>
+        <input type="range" id="ramp-slider" min="1" max="100" value="18" />
+        <span class="range-labels"><span>Slow</span><span>Fast</span></span>
+      </label>
+
+      <div class="checkbox-group">
+        <label><input type="checkbox" id="opt-loop-ext" checked /> Loop extension optimization</label>
+        <label><input type="checkbox" id="opt-reverse" /> Allow only reverse branches</label>
+        <label><input type="checkbox" id="opt-long" /> Allow only long branches</label>
+        <label><input type="checkbox" id="opt-no-seq" /> Remove sequential branches</label>
+      </div>
+
+      <label>
+        Volume: <span id="vol-val">80</span>
+        <input type="range" id="vol-slider" min="0" max="100" value="80" />
+        <span class="range-labels"><span>Quiet</span><span>Loud</span></span>
+      </label>
+
+      <div class="stats">
+        <div>Branch chance: <strong id="stat-chance">18</strong>%</div>
+        <div>Last threshold: <strong id="stat-thresh">0</strong></div>
+        <div>Song length: <strong id="stat-duration">--:--</strong></div>
+        <div>Total beats: <strong id="stat-beats">0</strong></div>
+        <div>Total branches: <strong id="stat-branches">0</strong></div>
+        <div>Longest loop: <strong id="stat-longest-loop">0</strong> beats (<strong id="stat-longest-pct">0</strong>%)</div>
+      </div>
+
+      <div class="panel-actions">
+        <button id="reset-btn">Reset</button>
+        <button id="close-tune-btn">Close</button>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

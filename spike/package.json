@@ -1,0 +1,9 @@
+{
+  "name": "@aidios/spike",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "essentia.js": "^0.1.3"
+  }
+}

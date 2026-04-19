@@ -1,0 +1,11 @@
+{
+  "name": "@aidios/analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@aidios/types": "*",
+    "essentia.js": "^0.1.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "aidios",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "spike"
+  ],
+  "scripts": {
+    "spike": "node --experimental-strip-types spike/index.ts",
+    "analyze": "node --experimental-strip-types -e \"const{analyzeAudio}=require('./packages/analyzer/src/index.ts');const f=process.argv[1]||'test.mp4';analyzeAudio(f,{logProgress:true}).then(r=>{process.stdout.write(JSON.stringify(r))}).catch(e=>{console.error(e.message);process.exit(1)})\"",
+    "server": "node --experimental-strip-types packages/server/src/index.ts",
+    "web": "npm run dev --workspace=@aidios/web",
+    "dev": "concurrently -n server,web -c blue,green \"npm run server\" \"npm run web\"",
+    "demo": "node --experimental-strip-types -e \"const{analyzeAudio}=require('./packages/analyzer/src/index.ts');const{prepareTrack,InfiniteBeats}=require('./packages/jukebox/src/index.ts');const f=process.argv[1]||'test.mp4';analyzeAudio(f,{logProgress:true}).then(a=>{const t=prepareTrack(a);const b=t.analysis.beats;const n=b.filter(x=>x.neighbors&&x.neighbors.length>0);console.log('Beats:',b.length,'with neighbors:',n.length);const j=new InfiniteBeats(t);let prev=-1,br=0;for(let i=0;i<100;i++){const beat=j.nextBeat();if(prev>=0&&beat.which!==prev+1)br++;prev=beat.which}console.log('Branches in 100 beats:',br)}).catch(e=>{console.error(e.message);process.exit(1)})\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.14"
+  }
+}
