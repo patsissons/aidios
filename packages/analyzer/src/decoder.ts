@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 
 export const SAMPLE_RATE = 22050
+export const RHYTHM_SAMPLE_RATE = 44100
 export const FFMPEG = process.env['FFMPEG_PATH'] ?? 'ffmpeg'
 
 export interface DecodedAudio {
@@ -24,11 +25,14 @@ export async function computeMd5(filePath: string): Promise<string> {
 }
 
 /**
- * Decode any audio file to raw 32-bit float PCM at 22050Hz mono.
+ * Decode any audio file to raw 32-bit float PCM at the requested mono sample rate.
  * Uses ffmpeg — must be installed. Decodes entire file to memory.
  * maxBuffer supports up to ~15 minutes of audio (350MB).
  */
-export async function decodeAudio(filePath: string): Promise<DecodedAudio> {
+export async function decodeAudio(
+  filePath: string,
+  sampleRate = SAMPLE_RATE,
+): Promise<DecodedAudio> {
   const md5 = await computeMd5(filePath)
 
   const result = spawnSync(
@@ -36,7 +40,7 @@ export async function decodeAudio(filePath: string): Promise<DecodedAudio> {
     [
       '-i', filePath,
       '-f', 'f32le',           // raw 32-bit little-endian float
-      '-ar', String(SAMPLE_RATE),
+      '-ar', String(sampleRate),
       '-ac', '1',              // mono
       '-acodec', 'pcm_f32le',
       'pipe:1',
@@ -62,9 +66,9 @@ export async function decodeAudio(filePath: string): Promise<DecodedAudio> {
 
   return {
     data,
-    sampleRate: SAMPLE_RATE,
+    sampleRate,
     numSamples,
-    duration: numSamples / SAMPLE_RATE,
+    duration: numSamples / sampleRate,
     md5,
   }
 }

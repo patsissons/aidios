@@ -6,7 +6,7 @@
 
 import { createHash } from 'node:crypto'
 import type { AudioAnalysis, TrackSummary, AnalysisMeta } from '@aidios/types'
-import { decodeAudio, SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
+import { decodeAudio, RHYTHM_SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
 import {
   extractGlobalFeatures,
   buildBeats, buildTatums, buildBars,
@@ -88,7 +88,10 @@ export async function analyzeAudio(
   // Phase 2: Global features (beats, key, loudness, fades)
   log('[2/6] Extracting global features...')
   const t2 = Date.now()
-  const globals = extractGlobalFeatures(audio)
+  const rhythmAudio = audio.sampleRate === RHYTHM_SAMPLE_RATE
+    ? audio
+    : await decodeAudio(filePath, RHYTHM_SAMPLE_RATE)
+  const globals = extractGlobalFeatures(audio, rhythmAudio)
   log(`  BPM: ${globals.bpm.toFixed(1)}, Key: ${globals.keyInt}/${globals.modeInt}, Beats: ${globals.beatTimes.length} [${Date.now()-t2}ms]`)
 
   // Phase 3: Beat structures

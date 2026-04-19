@@ -26,16 +26,16 @@ export interface GlobalFeatures {
 }
 
 /**
- * Fix beat grid issues from RhythmExtractor2013:
- * 1. If median beat spacing > 0.7s, it tracked at half-tempo → insert midpoints
- * 2. If beats don't cover the full track, extend the grid using median spacing
+ * Fix beat grid issues from RhythmExtractor2013.
  *
- * Uses median spacing (not total/count) since beats may not span the full track.
+ * We intentionally do not extend a partial grid to the end of the track. Synthetic
+ * tail beats produce identical/near-identical branch targets in fade-outs and
+ * outros, which sounds like a repeated beat during playback.
  */
-function fixBeatGrid(beats: number[], duration: number): number[] {
+function fixBeatGrid(beats: number[], duration: number, endOfFadeIn: number): number[] {
   if (beats.length < 2) return beats
 
-  // Compute median spacing (robust against outliers/gaps)
+  // Compute median spacing (robust against outliers/gaps).
   const spacings: number[] = []
   for (let i = 1; i < beats.length; i++) spacings.push(beats[i] - beats[i - 1])
   spacings.sort((a, b) => a - b)
@@ -43,7 +43,7 @@ function fixBeatGrid(beats: number[], duration: number): number[] {
 
   let result = [...beats]
 
-  // Half-tempo fix: if median spacing > 0.7s, insert midpoints
+  // Half-tempo fix: if median spacing > 0.7s, insert midpoints.
   if (medianSpacing > 0.7) {
     const doubled: number[] = []
     for (let i = 0; i < result.length - 1; i++) {
@@ -55,15 +55,35 @@ function fixBeatGrid(beats: number[], duration: number): number[] {
     medianSpacing /= 2
   }
 
-  // Extend beat grid to cover the full track duration
-  const lastBeat = result[result.length - 1]
-  if (lastBeat + medianSpacing * 2 < duration) {
-    for (let t = lastBeat + medianSpacing; t < duration - medianSpacing / 2; t += medianSpacing) {
-      result.push(t)
+  // If the first tick lands right on the fade-in boundary, it is often a pickup
+  // or decoder onset rather than the first stable downbeat. Starting the bar grid
+  // there shifts every branch target by one beat.
+  if (
+    result.length > 4
+    && result[0] < Math.min(0.75, duration)
+    && Math.abs(result[0] - endOfFadeIn) < Math.min(0.08, medianSpacing * 0.2)
+  ) {
+    result = result.slice(1)
+  }
+
+  return trimUnstableTail(result, medianSpacing)
+}
+
+function trimUnstableTail(beats: number[], medianSpacing: number): number[] {
+  if (beats.length < 8) return beats
+
+  const minSpacing = medianSpacing / 1.18
+  const maxSpacing = medianSpacing * 1.18
+  const searchStart = Math.floor(beats.length * 0.75)
+
+  for (let i = searchStart; i < beats.length - 1; i++) {
+    const spacing = beats[i + 1] - beats[i]
+    if (spacing < minSpacing || spacing > maxSpacing) {
+      return beats.slice(0, i + 1)
     }
   }
 
-  return result
+  return beats
 }
 
 function computeOverallLoudness(data: Float32Array): number {
@@ -98,14 +118,22 @@ function detectFades(data: Float32Array, duration: number): { endOfFadeIn: numbe
   return { endOfFadeIn, startOfFadeOut }
 }
 
-export function extractGlobalFeatures(audio: DecodedAudio): GlobalFeatures {
+export function extractGlobalFeatures(
+  audio: DecodedAudio,
+  rhythmAudio: DecodedAudio = audio,
+): GlobalFeatures {
   const essentia = getEssentia()
 
-  // Load full audio into WASM — must be deleted after global extractions
-  const vec = essentia.toVec(audio.data)
+  // RhythmExtractor2013 has no sample-rate argument in essentia.js and behaves
+  // best with 44.1kHz input. Keep the rest of the analysis at SAMPLE_RATE.
+  const rhythmVec = essentia.toVec(rhythmAudio.data)
 
   // Beat extraction
-  const rhythm = essentia.rhythmExtractor(vec)
+  const rhythm = essentia.rhythmExtractor(rhythmVec)
+  rhythmVec.delete()
+
+  // Load full analysis-rate audio into WASM — must be deleted after key extraction
+  const vec = essentia.toVec(audio.data)
 
   // Key/mode extraction
   const key = essentia.keyExtractor(vec, audio.sampleRate)
@@ -113,12 +141,10 @@ export function extractGlobalFeatures(audio: DecodedAudio): GlobalFeatures {
   // Free WASM heap — critical before any subsequent large allocations
   vec.delete()
 
-  // Fix beat grid: half-time correction and extend to cover full track
-  const beatTimes = fixBeatGrid(rhythm.beatTimes, audio.duration)
-
   // Plain JS calculations (no WASM needed)
   const overallLoudness = computeOverallLoudness(audio.data)
   const { endOfFadeIn, startOfFadeOut } = detectFades(audio.data, audio.duration)
+  const beatTimes = fixBeatGrid(rhythm.beatTimes, audio.duration, endOfFadeIn)
 
   return {
     bpm: rhythm.bpm,
