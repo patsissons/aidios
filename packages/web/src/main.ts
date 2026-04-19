@@ -32,6 +32,15 @@ const $rampSlider = document.getElementById('ramp-slider') as HTMLInputElement
 const $rampVal = document.getElementById('ramp-val')!
 const $volSlider = document.getElementById('vol-slider') as HTMLInputElement
 const $volVal = document.getElementById('vol-val')!
+const $lookaheadSlider = document.getElementById('lookahead-slider') as HTMLInputElement
+const $lookaheadVal = document.getElementById('lookahead-val')!
+const $crossfadeSlider = document.getElementById('crossfade-slider') as HTMLInputElement
+const $crossfadeVal = document.getElementById('crossfade-val')!
+const $prerollSlider = document.getElementById('preroll-slider') as HTMLInputElement
+const $prerollVal = document.getElementById('preroll-val')!
+const $targetOffsetSlider = document.getElementById('target-offset-slider') as HTMLInputElement
+const $targetOffsetVal = document.getElementById('target-offset-val')!
+const $fadeCurveSelect = document.getElementById('fade-curve-select') as HTMLSelectElement
 const $optLoopExt = document.getElementById('opt-loop-ext') as HTMLInputElement
 const $optReverse = document.getElementById('opt-reverse') as HTMLInputElement
 const $optLong = document.getElementById('opt-long') as HTMLInputElement
@@ -136,6 +145,7 @@ function initializePlayer(): void {
       $playBtn.classList.remove('playing')
     }
   })
+  syncUIToParams()
 
   // Update stats
   updateStats()
@@ -220,6 +230,36 @@ $volSlider.addEventListener('input', () => {
   player.setParams(params)
 })
 
+// Advanced transition settings
+$lookaheadSlider.addEventListener('input', () => {
+  const val = Number($lookaheadSlider.value)
+  $lookaheadVal.textContent = String(val)
+  params.scheduleAheadMs = val
+  player.setTransitionParams(params)
+})
+$crossfadeSlider.addEventListener('input', () => {
+  const val = Number($crossfadeSlider.value)
+  $crossfadeVal.textContent = String(val)
+  params.branchCrossfadeMs = val
+  player.setTransitionParams(params)
+})
+$prerollSlider.addEventListener('input', () => {
+  const val = Number($prerollSlider.value)
+  $prerollVal.textContent = String(val)
+  params.branchPreRollMs = val
+  player.setTransitionParams(params)
+})
+$targetOffsetSlider.addEventListener('input', () => {
+  const val = Number($targetOffsetSlider.value)
+  $targetOffsetVal.textContent = String(val)
+  params.branchTargetOffsetMs = val
+  player.setTransitionParams(params)
+})
+$fadeCurveSelect.addEventListener('change', () => {
+  params.fadeCurve = $fadeCurveSelect.value as TuneParams['fadeCurve']
+  player.setTransitionParams(params)
+})
+
 // Checkboxes
 $optLoopExt.addEventListener('change', () => { params.loopExtension = $optLoopExt.checked; rebuildNeighbors() })
 $optReverse.addEventListener('change', () => { params.reverseOnly = $optReverse.checked; rebuildNeighbors() })
@@ -248,6 +288,15 @@ function syncUIToParams(): void {
   $rampVal.textContent = String(Math.round(params.rampUpSpeed * 1000))
   $volSlider.value = String(Math.round(params.volume * 100))
   $volVal.textContent = String(Math.round(params.volume * 100))
+  $lookaheadSlider.value = String(params.scheduleAheadMs)
+  $lookaheadVal.textContent = String(params.scheduleAheadMs)
+  $crossfadeSlider.value = String(params.branchCrossfadeMs)
+  $crossfadeVal.textContent = String(params.branchCrossfadeMs)
+  $prerollSlider.value = String(params.branchPreRollMs)
+  $prerollVal.textContent = String(params.branchPreRollMs)
+  $targetOffsetSlider.value = String(params.branchTargetOffsetMs)
+  $targetOffsetVal.textContent = String(params.branchTargetOffsetMs)
+  $fadeCurveSelect.value = params.fadeCurve
   $optLoopExt.checked = params.loopExtension
   $optReverse.checked = params.reverseOnly
   $optLong.checked = params.longOnly

@@ -9,6 +9,7 @@ import type {
 } from './types'
 
 const MAX_BRANCHES = 4
+const PRECALC_MAX_THRESHOLD = 80
 
 // ─── remixTrack ─────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ export function calculateNearestNeighbors(
   const beats = track.analysis.beats
   const targetBranches = beats.length / 6
 
-  precalculate(beats, maxThreshold)
+  precalculate(beats, Math.max(maxThreshold, PRECALC_MAX_THRESHOLD))
 
   let threshold = 10
   let count = 0

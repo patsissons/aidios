@@ -79,6 +79,42 @@
         <span class="range-labels"><span>Quiet</span><span>Loud</span></span>
       </label>
 
+      <details class="advanced-settings">
+        <summary>Advanced transition settings</summary>
+
+        <label>
+          Schedule Lookahead: <span id="lookahead-val">1000</span>ms
+          <input type="range" id="lookahead-slider" min="100" max="2500" step="50" value="1000" />
+          <span class="range-labels"><span>Responsive</span><span>Prepared</span></span>
+        </label>
+
+        <label>
+          Branch Crossfade: <span id="crossfade-val">50</span>ms
+          <input type="range" id="crossfade-slider" min="0" max="250" step="5" value="50" />
+          <span class="range-labels"><span>Sharp</span><span>Smooth</span></span>
+        </label>
+
+        <label>
+          Destination Pre-roll: <span id="preroll-val">0</span>ms
+          <input type="range" id="preroll-slider" min="0" max="150" step="5" value="0" />
+          <span class="range-labels"><span>At beat</span><span>Before beat</span></span>
+        </label>
+
+        <label>
+          Target Offset: <span id="target-offset-val">0</span>ms
+          <input type="range" id="target-offset-slider" min="-150" max="1000" step="5" value="0" />
+          <span class="range-labels"><span>Earlier</span><span>Later</span></span>
+        </label>
+
+        <label>
+          Fade Curve
+          <select id="fade-curve-select">
+            <option value="equalPower">Equal power</option>
+            <option value="linear">Linear</option>
+          </select>
+        </label>
+      </details>
+
       <div class="stats">
         <div>Branch chance: <strong id="stat-chance">18</strong>%</div>
         <div>Last threshold: <strong id="stat-thresh">0</strong></div>
