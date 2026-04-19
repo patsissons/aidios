@@ -13,11 +13,13 @@ import type { Segment } from '@aidios/types'
 
 const FRAME_SIZE = 2048
 const LOUDNESS_BLOCK_SECS = 0.05   // 50ms RMS blocks for loudness envelope
+const LOUDNESS_FLOOR_DB = -60
 
 function rmsDb(samples: Float32Array): number {
+  if (samples.length === 0) return LOUDNESS_FLOOR_DB
   let s = 0
   for (let i = 0; i < samples.length; i++) s += samples[i] * samples[i]
-  return 20 * Math.log10(Math.max(Math.sqrt(s / samples.length), 1e-10))
+  return Math.max(LOUDNESS_FLOOR_DB, 20 * Math.log10(Math.max(Math.sqrt(s / samples.length), 1e-10)))
 }
 
 function computeLoudnessEnvelope(segAudio: Float32Array, sampleRate: number): {

@@ -72,6 +72,12 @@ export function buildSegmentBoundaries(
     return [{ start: 0, end: trackDuration }]
   }
   const boundaries: SegmentBoundary[] = []
+  if (onsets[0] > 0) {
+    boundaries.push({
+      start: 0,
+      end: onsets[0],
+    })
+  }
   for (let i = 0; i < onsets.length; i++) {
     boundaries.push({
       start: onsets[i],

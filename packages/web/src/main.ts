@@ -123,7 +123,9 @@ function initializePlayer(): void {
   // Prepare the jukebox track with default threshold
   params = { ...DEFAULT_TUNE }
   track = prepareTrack(analysis, params.threshold)
-  currentThreshold = params.threshold
+  const result = updateThreshold(track, params.threshold)
+  currentThreshold = result.threshold
+  applyBranchFilters(track, params)
 
   // Switch to player view FIRST so canvas has dimensions
   $uploadSection.hidden = true

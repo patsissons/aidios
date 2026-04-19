@@ -226,17 +226,16 @@ export class Player {
     const preRollSeconds = Math.min(this.params.branchPreRollMs / 1000, nextBeat.start, nextBeat.duration / 2)
     const targetOffsetSeconds = this.params.branchTargetOffsetMs / 1000
     const targetStart = Math.min(this.buffer.duration - 0.001, Math.max(0, nextBeat.start + targetOffsetSeconds))
-    const transitionSeconds = fadeSeconds + preRollSeconds
-    const scheduledStart = when - transitionSeconds
+    const scheduledStart = when - preRollSeconds
     const actualStart = Math.max(this.ctx.currentTime, scheduledStart)
     const skippedTransitionSeconds = actualStart - scheduledStart
-    const sourceOffset = Math.max(0, targetStart - transitionSeconds + skippedTransitionSeconds)
+    const sourceOffset = Math.max(0, targetStart - preRollSeconds + skippedTransitionSeconds)
     const previousRun = this.currentRun
     const nextRun = this.startRunAtOffset(
       nextBeat,
       actualStart,
       sourceOffset,
-      Math.max(0, transitionSeconds - skippedTransitionSeconds),
+      Math.max(0, Math.min(fadeSeconds, preRollSeconds + fadeSeconds - skippedTransitionSeconds)),
     )
     if (!nextRun) return
 

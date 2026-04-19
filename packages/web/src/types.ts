@@ -105,12 +105,12 @@ export interface TuneParams {
 }
 
 export const DEFAULT_TUNE: TuneParams = {
-  threshold: 20,
+  threshold: 80,
   minBranchProb: 0.18,
   maxBranchProb: 0.50,
   rampUpSpeed: 0.018,   // +1.8% per beat — matches original EternalJukebox
   scheduleAheadMs: 1000,
-  branchCrossfadeMs: 50,
+  branchCrossfadeMs: 8,
   branchPreRollMs: 0,
   branchTargetOffsetMs: 0,
   fadeCurve: 'equalPower',
