@@ -89,10 +89,61 @@ $uploadZone.addEventListener('drop', (e) => {
   if (e.dataTransfer?.files?.[0]) handleFile(e.dataTransfer.files[0])
 })
 
+// ─── Demo buttons ─────────────────────────────────────────────────────��─────
+
+document.querySelectorAll<HTMLButtonElement>('.demo-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const name = btn.dataset.demo!
+    handleDemo(name)
+  })
+})
+
+async function handleDemo(name: string): Promise<void> {
+  $progressContainer.hidden = false
+  $uploadZone.style.display = 'none'
+  document.querySelector('.demo-buttons')?.setAttribute('style', 'display:none')
+
+  try {
+    $progressText.textContent = 'Loading demo...'
+    $progressBar.style.setProperty('--progress', '30%')
+
+    // Fetch pre-computed analysis and audio in parallel
+    const [analysisRes, audioRes] = await Promise.all([
+      fetch(`/demos/${name}.json`),
+      fetch(`/demos/${name}.mp4`),
+    ])
+
+    if (!analysisRes.ok) throw new Error('Failed to load analysis')
+    if (!audioRes.ok) throw new Error('Failed to load audio')
+
+    $progressText.textContent = 'Decoding audio...'
+    $progressBar.style.setProperty('--progress', '70%')
+
+    const [analysisData, audioBlob] = await Promise.all([
+      analysisRes.json(),
+      audioRes.blob(),
+    ])
+
+    analysis = analysisData as AudioAnalysis
+    audioFile = new File([audioBlob], `${name}.mp4`, { type: 'audio/mp4' })
+    await player.loadAudio(audioFile)
+
+    $progressBar.style.setProperty('--progress', '100%')
+    $progressText.textContent = 'Done!'
+    initializePlayer()
+  } catch (err) {
+    $progressText.textContent = `Error: ${err instanceof Error ? err.message : err}`
+    $progressText.style.color = '#e55'
+  }
+}
+
+// ─── File upload ─────────────────��──────────────────────────────��───────────
+
 async function handleFile(file: File): Promise<void> {
   audioFile = file
   $progressContainer.hidden = false
   $uploadZone.style.display = 'none'
+  document.querySelector('.demo-buttons')?.setAttribute('style', 'display:none')
 
   try {
     // Start audio decode in parallel with server analysis
@@ -203,15 +254,25 @@ $threshSlider.addEventListener('input', () => {
   rebuildNeighbors()
 })
 
-// Probability range
+// Probability range (auto-clamp so min never exceeds max)
 $probMinSlider.addEventListener('input', () => {
-  const val = Number($probMinSlider.value)
+  let val = Number($probMinSlider.value)
+  const max = Number($probMaxSlider.value)
+  if (val > max) {
+    val = max
+    $probMinSlider.value = String(val)
+  }
   $probMinVal.textContent = String(val)
   params.minBranchProb = val / 100
   player.setParams(params)
 })
 $probMaxSlider.addEventListener('input', () => {
-  const val = Number($probMaxSlider.value)
+  let val = Number($probMaxSlider.value)
+  const min = Number($probMinSlider.value)
+  if (val < min) {
+    val = min
+    $probMaxSlider.value = String(val)
+  }
   $probMaxVal.textContent = String(val)
   params.maxBranchProb = val / 100
   player.setParams(params)

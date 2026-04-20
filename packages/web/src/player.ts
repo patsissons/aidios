@@ -301,20 +301,18 @@ export class Player {
   private pickNext(beat: Quantum): Quantum {
     const neighbors = beat.neighbors ?? []
 
-    if (neighbors.length > 0 && Math.random() < this.branchProb) {
-      // Branch! Pick a random neighbor.
+    // Force a branch if this is the last opportunity before the song ends.
+    // Look ahead: if no future beat (between here and the end) has branches,
+    // we MUST branch now to guarantee infinite playback.
+    const forceBranch = neighbors.length > 0 && this.mustBranchNow(beat)
+
+    if (neighbors.length > 0 && (forceBranch || Math.random() < this.branchProb)) {
       const edge = neighbors[Math.floor(Math.random() * neighbors.length)]
       this.branchProb = this.params.minBranchProb
 
       if (this.params.jumpToNext) {
-        // N → M+1: jump past the similar beat so we don't repeat it.
-        // Since dest ≈ beat, playing dest.next after beat sounds like the
-        // natural continuation after the aligned downbeat.
         return edge.dest.next ?? edge.dest
       } else {
-        // N-1 → M: end the current beat early and land directly on the
-        // similar beat. The branch fires one beat earlier so that the
-        // similar beat (dest) occupies the slot the listener expects.
         return edge.dest
       }
     }
@@ -327,6 +325,36 @@ export class Player {
 
     // Advance sequentially; wrap at end
     return beat.next ?? this.track!.analysis.beats[0]
+  }
+
+  /**
+   * Returns true if we must take a branch NOW because there are no further
+   * branch opportunities between the current beat and the end of the track.
+   * Uses a small random look-ahead window so we don't always branch at the
+   * exact same beat — instead we randomly pick one of the last few branch
+   * points to keep it varied.
+   */
+  private mustBranchNow(beat: Quantum): boolean {
+    // Count how many future beats (after this one) still have branches.
+    let futureBranchBeats = 0
+    let cursor: Quantum | null = beat.next
+    while (cursor) {
+      if ((cursor.neighbors?.length ?? 0) > 0) futureBranchBeats++
+      cursor = cursor.next
+    }
+
+    if (futureBranchBeats === 0) {
+      // This is literally the last branch point — must take it.
+      return true
+    }
+
+    // Randomly force among the last few branch points so we don't always
+    // loop at the same spot. Use a 1-in-(remaining+1) chance.
+    if (futureBranchBeats <= 3) {
+      return Math.random() < 1 / (futureBranchBeats + 1)
+    }
+
+    return false
   }
 
   private emitAt(when: number, event: PlayerEvent): void {

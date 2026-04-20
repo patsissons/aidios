@@ -35,6 +35,10 @@ export class Visualization {
   private playedBeats = new Map<number, number>() // beat index → play count
   private onSeek: ((beatIndex: number) => void) | null = null
 
+  /** Active branch ping animations */
+  private branchPings: { srcIdx: number; destIdx: number; edge: Edge; startTime: number }[] = []
+  private animFrameId: number | null = null
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')!
@@ -53,14 +57,38 @@ export class Visualization {
   }
 
   setCurrentBeat(beatIndex: number, isBranch: boolean): void {
+    const prevBeat = this.currentBeat
     this.currentBeat = beatIndex
     this.playedBeats.set(beatIndex, (this.playedBeats.get(beatIndex) ?? 0) + 1)
+
+    if (isBranch && prevBeat >= 0 && prevBeat < (this.track?.analysis.beats.length ?? 0)) {
+      // Find the edge that was taken (src → dest where dest ≈ beatIndex or dest.next ≈ beatIndex)
+      const srcBeat = this.track!.analysis.beats[prevBeat]
+      const edge = (srcBeat.neighbors ?? []).find(
+        (e) => e.dest.which === beatIndex || e.dest.next?.which === beatIndex,
+      )
+      if (edge) {
+        this.branchPings.push({
+          srcIdx: prevBeat,
+          destIdx: beatIndex,
+          edge,
+          startTime: performance.now(),
+        })
+        this.startAnimation()
+      }
+    }
+
     this.draw()
   }
 
   reset(): void {
     this.currentBeat = -1
     this.playedBeats.clear()
+    this.branchPings = []
+    if (this.animFrameId !== null) {
+      cancelAnimationFrame(this.animFrameId)
+      this.animFrameId = null
+    }
     this.draw()
   }
 
@@ -175,6 +203,11 @@ export class Visualization {
     if (this.currentBeat >= 0 && this.currentBeat < this.tiles.length) {
       this.drawCurrentBeat(ctx)
     }
+
+    // Animated branch pings (on top of everything)
+    if (this.branchPings.length > 0) {
+      this.drawBranchPings(ctx)
+    }
   }
 
   private drawTiles(ctx: CanvasRenderingContext2D): void {
@@ -274,6 +307,63 @@ export class Visualization {
     ctx.arc(tile.x, tile.y, 4, 0, Math.PI * 2)
     ctx.fillStyle = '#fff'
     ctx.fill()
+  }
+
+  // ─── Branch ping animation ──────────────────────────────────────────────
+
+  private static PING_DURATION_MS = 800
+
+  private startAnimation(): void {
+    if (this.animFrameId !== null) return
+    const animate = () => {
+      const now = performance.now()
+      this.branchPings = this.branchPings.filter(
+        (p) => now - p.startTime < Visualization.PING_DURATION_MS,
+      )
+      if (this.branchPings.length === 0) {
+        this.animFrameId = null
+        this.draw()
+        return
+      }
+      this.draw()
+      this.animFrameId = requestAnimationFrame(animate)
+    }
+    this.animFrameId = requestAnimationFrame(animate)
+  }
+
+  private drawBranchPings(ctx: CanvasRenderingContext2D): void {
+    const now = performance.now()
+    for (const ping of this.branchPings) {
+      const elapsed = now - ping.startTime
+      const progress = elapsed / Visualization.PING_DURATION_MS
+      if (progress >= 1) continue
+
+      const alpha = 1 - progress
+      const expand = progress * 12
+
+      // Highlight the branch arc
+      this.drawArc(ctx, ping.edge, `rgba(80, 220, 255, ${alpha * 0.8})`, 2.5 + expand * 0.2, 1)
+
+      // Ping ring at destination beat
+      const destTile = this.tiles[ping.destIdx]
+      if (destTile) {
+        ctx.beginPath()
+        ctx.arc(destTile.x, destTile.y, 4 + expand, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(80, 220, 255, ${alpha})`
+        ctx.lineWidth = 2.5 * (1 - progress * 0.5)
+        ctx.stroke()
+      }
+
+      // Ping ring at source beat
+      const srcTile = this.tiles[ping.srcIdx]
+      if (srcTile) {
+        ctx.beginPath()
+        ctx.arc(srcTile.x, srcTile.y, 4 + expand * 0.6, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255, 160, 80, ${alpha * 0.7})`
+        ctx.lineWidth = 2 * (1 - progress * 0.5)
+        ctx.stroke()
+      }
+    }
   }
 
   // ─── Arc hit testing ────────────────────────────────────────────────────

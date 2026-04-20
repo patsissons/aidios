@@ -61,6 +61,36 @@ main {
   display: none;
 }
 
+.demo-buttons {
+  margin-top: 1.5rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.demo-buttons span {
+  color: #5a7a9a;
+  font-size: 0.9rem;
+}
+
+.demo-btn {
+  background: #2a3a4a;
+  border: 1px solid #3a5a6a;
+  color: #7eb8da;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.demo-btn:hover {
+  background: #3a4a5a;
+  border-color: #7eb8da;
+}
+
 .progress-container {
   margin-top: 1.5rem;
   text-align: center;

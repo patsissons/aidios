@@ -19,6 +19,11 @@
         <p>Drop an audio file here or click to select</p>
         <input type="file" id="file-input" accept="audio/*,video/*" />
       </div>
+      <div class="demo-buttons">
+        <span>Or try a demo:</span>
+        <button class="demo-btn" data-demo="gangnam">Gangnam Style</button>
+        <button class="demo-btn" data-demo="alice_in_wonderland">Alice in Wonderland</button>
+      </div>
       <div id="upload-progress" class="progress-container" hidden>
         <div class="progress-bar" id="progress-bar"></div>
         <p id="progress-text">Uploading...</p>
@@ -49,7 +54,7 @@
 
       <label>
         Branch Similarity Threshold: <span id="thresh-val">80</span>
-        <input type="range" id="thresh-slider" min="2" max="80" value="80" />
+        <input type="range" id="thresh-slider" min="2" max="300" value="80" />
         <span class="range-labels"><span>Higher Quality</span><span>More Branches</span></span>
       </label>
 

@@ -9,7 +9,7 @@ import type {
 } from './types'
 
 const MAX_BRANCHES = 4
-const PRECALC_MAX_THRESHOLD = 80
+const PRECALC_MAX_THRESHOLD = 300
 
 // ─── remixTrack ─────────────────────────────────────────────────────────────
 
