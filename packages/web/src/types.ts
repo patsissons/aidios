@@ -101,6 +101,7 @@ export interface TuneParams {
   reverseOnly: boolean
   longOnly: boolean
   noSequential: boolean
+  jumpToNext: boolean
   volume: number
 }
 
@@ -110,13 +111,14 @@ export const DEFAULT_TUNE: TuneParams = {
   maxBranchProb: 0.50,
   rampUpSpeed: 0.018,   // +1.8% per beat — matches original EternalJukebox
   scheduleAheadMs: 1000,
-  branchCrossfadeMs: 8,
-  branchPreRollMs: 0,
+  branchCrossfadeMs: 40,
+  branchPreRollMs: 40,
   branchTargetOffsetMs: 0,
   fadeCurve: 'equalPower',
   loopExtension: true,
   reverseOnly: false,
   longOnly: false,
   noSequential: false,
+  jumpToNext: true,
   volume: 0.8,
 }

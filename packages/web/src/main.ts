@@ -45,6 +45,7 @@ const $optLoopExt = document.getElementById('opt-loop-ext') as HTMLInputElement
 const $optReverse = document.getElementById('opt-reverse') as HTMLInputElement
 const $optLong = document.getElementById('opt-long') as HTMLInputElement
 const $optNoSeq = document.getElementById('opt-no-seq') as HTMLInputElement
+const $optJumpNext = document.getElementById('opt-jump-next') as HTMLInputElement
 const $resetBtn = document.getElementById('reset-btn')!
 const $closeTuneBtn = document.getElementById('close-tune-btn')!
 
@@ -267,6 +268,7 @@ $optLoopExt.addEventListener('change', () => { params.loopExtension = $optLoopEx
 $optReverse.addEventListener('change', () => { params.reverseOnly = $optReverse.checked; rebuildNeighbors() })
 $optLong.addEventListener('change', () => { params.longOnly = $optLong.checked; rebuildNeighbors() })
 $optNoSeq.addEventListener('change', () => { params.noSequential = $optNoSeq.checked; rebuildNeighbors() })
+$optJumpNext.addEventListener('change', () => { params.jumpToNext = $optJumpNext.checked; player.setParams(params) })
 
 // Reset
 $resetBtn.addEventListener('click', () => {
@@ -303,6 +305,7 @@ function syncUIToParams(): void {
   $optReverse.checked = params.reverseOnly
   $optLong.checked = params.longOnly
   $optNoSeq.checked = params.noSequential
+  $optJumpNext.checked = params.jumpToNext
   player.setParams(params)
 }
 

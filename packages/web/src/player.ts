@@ -13,7 +13,7 @@ const SEEK_LEAD_SECONDS = 0.03
 const RETUNE_LEAD_SECONDS = 0.02
 const RETUNE_CROSSFADE_SECONDS = 0.025
 const MIN_GAIN = 0.0001
-const FADE_CURVE_STEPS = 32
+const FADE_CURVE_STEPS = 64
 
 interface ScheduledRun {
   source: AudioBufferSourceNode
@@ -218,35 +218,82 @@ export class Player {
     return run
   }
 
+  /**
+   * Cross-fade from the current source to a new one at `nextBeat`.
+   *
+   * `when` = wall-clock time of the beat boundary (end of outgoing beat,
+   * start of incoming beat).
+   *
+   * The incoming source starts `preRoll` seconds before `when`, fading in
+   * so it reaches full volume exactly at the beat boundary.  The outgoing
+   * source fades out over the same window.  At `when`: old = 0, new = 1,
+   * so the target beat's transient plays cleanly at full volume — like a
+   * DJ bringing in the next track right on the downbeat.
+   */
   private scheduleJump(nextBeat: Quantum, when: number): void {
     if (!this.ctx || !this.buffer) return
 
-    const requestedFadeSeconds = this.params.branchCrossfadeMs / 1000
-    const fadeSeconds = Math.min(requestedFadeSeconds, nextBeat.duration / 2)
-    const preRollSeconds = Math.min(this.params.branchPreRollMs / 1000, nextBeat.start, nextBeat.duration / 2)
     const targetOffsetSeconds = this.params.branchTargetOffsetMs / 1000
-    const targetStart = Math.min(this.buffer.duration - 0.001, Math.max(0, nextBeat.start + targetOffsetSeconds))
+    const targetStart = Math.min(
+      this.buffer.duration - 0.001,
+      Math.max(0, nextBeat.start + targetOffsetSeconds),
+    )
+
+    // Pre-roll: how far before `when` to start the incoming source.
+    // Clamped so we don't seek before the buffer start or consume more
+    // than half the target beat.
+    const preRollSeconds = Math.min(
+      this.params.branchPreRollMs / 1000,
+      targetStart,
+      nextBeat.duration / 2,
+    )
+
+    // The crossfade must complete within the pre-roll window so the
+    // incoming beat's transient plays at full volume on the boundary.
+    // When preRoll is 0 the fade plays *after* the boundary (legacy
+    // behaviour — still better than a hard pop).
+    const requestedFade = this.params.branchCrossfadeMs / 1000
+    const fadeSeconds = preRollSeconds > 0
+      ? Math.min(requestedFade, preRollSeconds, nextBeat.duration / 2)
+      : Math.min(requestedFade, nextBeat.duration / 2)
+
+    // Wall-clock start of the incoming source (may be clamped to "now").
     const scheduledStart = when - preRollSeconds
     const actualStart = Math.max(this.ctx.currentTime, scheduledStart)
-    const skippedTransitionSeconds = actualStart - scheduledStart
-    const sourceOffset = Math.max(0, targetStart - preRollSeconds + skippedTransitionSeconds)
+    const skippedSeconds = actualStart - scheduledStart
+
+    // Buffer offset for the incoming source.
+    const sourceOffset = Math.max(0, targetStart - preRollSeconds + skippedSeconds)
+
+    // Fade-in duration, shortened if we couldn't use the full pre-roll.
+    const fadeInSeconds = Math.max(0, fadeSeconds - skippedSeconds)
+
+    // ── Incoming source ────────────────────────────────────────────────
     const previousRun = this.currentRun
     const nextRun = this.startRunAtOffset(
       nextBeat,
       actualStart,
       sourceOffset,
-      Math.max(0, Math.min(fadeSeconds, preRollSeconds + fadeSeconds - skippedTransitionSeconds)),
+      fadeInSeconds,
     )
     if (!nextRun) return
 
     this.currentRun = nextRun
+
+    // ── Outgoing source ────────────────────────────────────────────────
     if (!previousRun) return
 
-    const fadeStart = Math.max(this.ctx.currentTime, when - fadeSeconds)
-    previousRun.gain.gain.cancelScheduledValues(fadeStart)
-    previousRun.gain.gain.setValueAtTime(previousRun.gain.gain.value || 1, fadeStart)
+    const fadeOutStart = Math.max(this.ctx.currentTime, when - fadeSeconds)
+    const fadeOutDuration = Math.max(0.001, when - fadeOutStart)
+
+    previousRun.gain.gain.cancelScheduledValues(fadeOutStart)
+    previousRun.gain.gain.setValueAtTime(previousRun.gain.gain.value || 1, fadeOutStart)
     if (fadeSeconds > 0) {
-      previousRun.gain.gain.setValueCurveAtTime(fadeOutCurve(this.params.fadeCurve), fadeStart, Math.max(0.001, when - fadeStart))
+      previousRun.gain.gain.setValueCurveAtTime(
+        fadeOutCurve(this.params.fadeCurve),
+        fadeOutStart,
+        fadeOutDuration,
+      )
     }
     previousRun.source.stop(when)
   }
@@ -255,10 +302,21 @@ export class Player {
     const neighbors = beat.neighbors ?? []
 
     if (neighbors.length > 0 && Math.random() < this.branchProb) {
-      // Branch! Pick a random neighbor
+      // Branch! Pick a random neighbor.
       const edge = neighbors[Math.floor(Math.random() * neighbors.length)]
       this.branchProb = this.params.minBranchProb
-      return edge.dest
+
+      if (this.params.jumpToNext) {
+        // N → M+1: jump past the similar beat so we don't repeat it.
+        // Since dest ≈ beat, playing dest.next after beat sounds like the
+        // natural continuation after the aligned downbeat.
+        return edge.dest.next ?? edge.dest
+      } else {
+        // N-1 → M: end the current beat early and land directly on the
+        // similar beat. The branch fires one beat earlier so that the
+        // similar beat (dest) occupies the slot the listener expects.
+        return edge.dest
+      }
     }
 
     // No branch — ramp up probability

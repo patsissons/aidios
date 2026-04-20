@@ -71,6 +71,7 @@
         <label><input type="checkbox" id="opt-reverse" /> Allow only reverse branches</label>
         <label><input type="checkbox" id="opt-long" /> Allow only long branches</label>
         <label><input type="checkbox" id="opt-no-seq" /> Remove sequential branches</label>
+        <label><input type="checkbox" id="opt-jump-next" checked /> Jump to M+1 (uncheck for N-1→M)</label>
       </div>
 
       <label>
@@ -89,14 +90,14 @@
         </label>
 
         <label>
-          Branch Crossfade: <span id="crossfade-val">8</span>ms
-          <input type="range" id="crossfade-slider" min="0" max="250" step="1" value="8" />
+          Branch Crossfade: <span id="crossfade-val">40</span>ms
+          <input type="range" id="crossfade-slider" min="0" max="250" step="1" value="40" />
           <span class="range-labels"><span>Sharp</span><span>Smooth</span></span>
         </label>
 
         <label>
-          Destination Pre-roll: <span id="preroll-val">0</span>ms
-          <input type="range" id="preroll-slider" min="0" max="150" step="5" value="0" />
+          Destination Pre-roll: <span id="preroll-val">40</span>ms
+          <input type="range" id="preroll-slider" min="0" max="150" step="5" value="40" />
           <span class="range-labels"><span>At beat</span><span>Before beat</span></span>
         </label>
 
