@@ -54,7 +54,12 @@ export class Player {
     this.pendingAudio = await file.arrayBuffer()
   }
 
-  private async ensureAudioContext(): Promise<boolean> {
+  /**
+   * Create and activate AudioContext synchronously within a user gesture.
+   * On iOS WebKit, the gesture "token" is lost after the first await,
+   * so AudioContext creation + resume must happen before any async work.
+   */
+  private activateAudioContext(): void {
     if (!this.ctx) {
       this.ctx = new AudioContext()
       this.gainNode = this.ctx.createGain()
@@ -62,12 +67,19 @@ export class Player {
       this.gainNode.gain.value = this.params.volume
     }
 
+    // resume() must be called synchronously in the gesture handler.
+    // It returns a promise but the activation is triggered immediately.
     if (this.ctx.state === 'suspended') {
-      await this.ctx.resume()
+      this.ctx.resume()
     }
+  }
+
+  private async decodeIfNeeded(): Promise<boolean> {
+    if (!this.ctx) return false
 
     if (!this.buffer && this.pendingAudio) {
-      this.buffer = await this.ctx.decodeAudioData(this.pendingAudio)
+      // Slice to avoid detaching the original in case of retry
+      this.buffer = await this.ctx.decodeAudioData(this.pendingAudio.slice(0))
       this.pendingAudio = null
     }
 
@@ -109,7 +121,9 @@ export class Player {
 
   async play(): Promise<void> {
     if (!this.track) return
-    if (!(await this.ensureAudioContext())) return
+    // Activate synchronously in the gesture callstack (iOS requirement)
+    this.activateAudioContext()
+    if (!(await this.decodeIfNeeded())) return
     if (!this.ctx || !this.buffer) return
 
     if (!this.playing) {
@@ -141,7 +155,8 @@ export class Player {
 
   async seekTo(beatIndex: number): Promise<void> {
     if (!this.track) return
-    if (!(await this.ensureAudioContext())) return
+    this.activateAudioContext()
+    if (!(await this.decodeIfNeeded())) return
     if (!this.ctx || !this.buffer) return
     const beats = this.track.analysis.beats
     if (beatIndex < 0 || beatIndex >= beats.length) return
