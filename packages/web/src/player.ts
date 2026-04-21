@@ -47,6 +47,20 @@ export class Player {
   private activeRuns = new Set<ScheduledRun>()
   private eventTimerIds = new Set<number>()
   private pendingAudio: ArrayBuffer | null = null
+  private visibilityHandler: (() => void) | null = null
+
+  dispose(): void {
+    this.stop()
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = null
+    }
+    if (this.ctx) {
+      this.ctx.removeEventListener('statechange', this.handleStateChange)
+      this.ctx.close().catch(() => {})
+      this.ctx = null
+    }
+  }
 
   async loadAudio(file: File): Promise<void> {
     // Store the raw audio data — defer AudioContext creation to play()
@@ -55,31 +69,117 @@ export class Player {
   }
 
   /**
-   * Create and activate AudioContext synchronously within a user gesture.
-   * On iOS WebKit, the gesture "token" is lost after the first await,
-   * so AudioContext creation + resume AND a source.start() must all
-   * happen synchronously before any async work. Playing a tiny silent
-   * buffer "unlocks" the context for subsequent audio on iOS.
+   * Activate the AudioContext and ensure it is truly producing audio.
+   *
+   * iOS Safari has multiple layers of audio gating:
+   *  1. AudioContext starts suspended and needs resume() within a user gesture.
+   *  2. A source.start() in the gesture callstack "unlocks" the context.
+   *  3. A hidden <audio> element play() activates the OS-level audio session
+   *     (works around WebKit bug 263627 where the context reports "running"
+   *     but currentTime is frozen and no audio is produced).
+   *  4. The "interrupted" state (iOS-only) can occur after backgrounding.
+   *
+   * This method addresses all four layers.
    */
-  private activateAudioContext(): void {
+  private async activateAudioContext(): Promise<boolean> {
     if (!this.ctx) {
+      // Kick the OS audio session via a native <audio> element FIRST.
+      // This is the howler.js pattern — it works around WebKit bugs where
+      // Web Audio's own unlock silently fails.
+      await this.unlockViaAudioElement()
+
       this.ctx = new AudioContext()
       this.gainNode = this.ctx.createGain()
       this.gainNode.connect(this.ctx.destination)
       this.gainNode.gain.value = this.params.volume
+
+      // Monitor for iOS "interrupted" state (backgrounding, phone calls)
+      this.ctx.addEventListener('statechange', this.handleStateChange)
+
+      // Resume audio when returning from background (iOS suspends audio sessions)
+      this.visibilityHandler = () => {
+        if (document.visibilityState === 'visible' && this.ctx) {
+          const s = this.ctx.state as string
+          if (s === 'suspended' || s === 'interrupted') {
+            this.ctx.resume().catch(() => {})
+          }
+        }
+      }
+      document.addEventListener('visibilitychange', this.visibilityHandler)
     }
 
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume()
+    // Resume if suspended or interrupted (iOS-specific state)
+    const state = this.ctx.state as string
+    if (state === 'suspended' || state === 'interrupted') {
+      await this.ctx.resume()
     }
 
-    // Play a silent buffer synchronously to unlock audio on iOS.
-    // iOS requires source.start() within the gesture callstack.
+    // Play a silent buffer to consume the iOS gesture token.
     const silent = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
     const src = this.ctx.createBufferSource()
     src.buffer = silent
     src.connect(this.ctx.destination)
     src.start(0)
+
+    // Verify the context is actually running and currentTime advances.
+    // WebKit bug 263627: state can be "running" while currentTime is frozen.
+    if (!await this.waitForContextRunning()) {
+      console.warn('[Player] AudioContext failed to start — retrying resume')
+      await this.ctx.resume()
+      return this.ctx.state === 'running'
+    }
+
+    return true
+  }
+
+  /**
+   * Play a tiny silent clip via a native <audio> element to activate the
+   * OS-level audio session. On iOS this is a separate gate from Web Audio's
+   * AudioContext — without it, the context can appear "running" but produce
+   * no audible output.
+   */
+  private unlockViaAudioElement(): Promise<void> {
+    return new Promise((resolve) => {
+      const audio = new Audio()
+      // Minimal silent WAV: 44-byte RIFF header, 1 sample of silence
+      audio.src =
+        'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
+      audio.volume = 0.01
+      audio.play().then(() => resolve()).catch(() => resolve())
+    })
+  }
+
+  /**
+   * Wait up to 500ms for the AudioContext to reach "running" state with
+   * an advancing currentTime. Returns false if it times out.
+   */
+  private waitForContextRunning(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!this.ctx) return resolve(false)
+      if (this.ctx.state === 'running' && this.ctx.currentTime > 0) {
+        return resolve(true)
+      }
+
+      const start = Date.now()
+      const check = () => {
+        if (!this.ctx) return resolve(false)
+        if (this.ctx.state === 'running' && this.ctx.currentTime > 0) {
+          return resolve(true)
+        }
+        if (Date.now() - start > 500) return resolve(false)
+        setTimeout(check, 20)
+      }
+      check()
+    })
+  }
+
+  /** Recover from iOS "interrupted" or "suspended" state changes. */
+  private handleStateChange = (): void => {
+    if (!this.ctx) return
+    const state = this.ctx.state as string
+    if (state === 'interrupted' || state === 'suspended') {
+      this.ctx.resume().catch(() => {})
+    }
   }
 
   private async decodeIfNeeded(): Promise<boolean> {
@@ -129,8 +229,10 @@ export class Player {
 
   async play(): Promise<void> {
     if (!this.track) return
-    // Activate synchronously in the gesture callstack (iOS requirement)
-    this.activateAudioContext()
+    if (!(await this.activateAudioContext())) {
+      console.error('[Player] Failed to activate AudioContext')
+      return
+    }
     if (!(await this.decodeIfNeeded())) return
     if (!this.ctx || !this.buffer) return
 
@@ -163,7 +265,7 @@ export class Player {
 
   async seekTo(beatIndex: number): Promise<void> {
     if (!this.track) return
-    this.activateAudioContext()
+    if (!(await this.activateAudioContext())) return
     if (!(await this.decodeIfNeeded())) return
     if (!this.ctx || !this.buffer) return
     const beats = this.track.analysis.beats
