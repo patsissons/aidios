@@ -57,7 +57,9 @@ export class Player {
   /**
    * Create and activate AudioContext synchronously within a user gesture.
    * On iOS WebKit, the gesture "token" is lost after the first await,
-   * so AudioContext creation + resume must happen before any async work.
+   * so AudioContext creation + resume AND a source.start() must all
+   * happen synchronously before any async work. Playing a tiny silent
+   * buffer "unlocks" the context for subsequent audio on iOS.
    */
   private activateAudioContext(): void {
     if (!this.ctx) {
@@ -67,11 +69,17 @@ export class Player {
       this.gainNode.gain.value = this.params.volume
     }
 
-    // resume() must be called synchronously in the gesture handler.
-    // It returns a promise but the activation is triggered immediately.
     if (this.ctx.state === 'suspended') {
       this.ctx.resume()
     }
+
+    // Play a silent buffer synchronously to unlock audio on iOS.
+    // iOS requires source.start() within the gesture callstack.
+    const silent = this.ctx.createBuffer(1, 1, this.ctx.sampleRate)
+    const src = this.ctx.createBufferSource()
+    src.buffer = silent
+    src.connect(this.ctx.destination)
+    src.start(0)
   }
 
   private async decodeIfNeeded(): Promise<boolean> {
