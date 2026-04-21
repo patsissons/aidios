@@ -46,15 +46,32 @@ export class Player {
   private currentRun: ScheduledRun | null = null
   private activeRuns = new Set<ScheduledRun>()
   private eventTimerIds = new Set<number>()
+  private pendingAudio: ArrayBuffer | null = null
 
   async loadAudio(file: File): Promise<void> {
-    this.ctx = new AudioContext()
-    this.gainNode = this.ctx.createGain()
-    this.gainNode.connect(this.ctx.destination)
-    this.gainNode.gain.value = this.params.volume
+    // Store the raw audio data — defer AudioContext creation to play()
+    // so it happens inside a user gesture (required by mobile browsers).
+    this.pendingAudio = await file.arrayBuffer()
+  }
 
-    const arrayBuffer = await file.arrayBuffer()
-    this.buffer = await this.ctx.decodeAudioData(arrayBuffer)
+  private async ensureAudioContext(): Promise<boolean> {
+    if (!this.ctx) {
+      this.ctx = new AudioContext()
+      this.gainNode = this.ctx.createGain()
+      this.gainNode.connect(this.ctx.destination)
+      this.gainNode.gain.value = this.params.volume
+    }
+
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume()
+    }
+
+    if (!this.buffer && this.pendingAudio) {
+      this.buffer = await this.ctx.decodeAudioData(this.pendingAudio)
+      this.pendingAudio = null
+    }
+
+    return !!this.buffer
   }
 
   setTrack(track: JukeboxTrack): void {
@@ -90,9 +107,10 @@ export class Player {
     return this.beatsPlayed
   }
 
-  play(): void {
-    if (!this.ctx || !this.buffer || !this.track) return
-    if (this.ctx.state === 'suspended') this.ctx.resume()
+  async play(): Promise<void> {
+    if (!this.track) return
+    if (!(await this.ensureAudioContext())) return
+    if (!this.ctx || !this.buffer) return
 
     if (!this.playing) {
       this.playing = true
@@ -116,13 +134,15 @@ export class Player {
     this.listener?.({ type: 'stop' })
   }
 
-  toggle(): void {
+  async toggle(): Promise<void> {
     if (this.playing) this.stop()
-    else this.play()
+    else await this.play()
   }
 
-  seekTo(beatIndex: number): void {
-    if (!this.track || !this.ctx || !this.buffer) return
+  async seekTo(beatIndex: number): Promise<void> {
+    if (!this.track) return
+    if (!(await this.ensureAudioContext())) return
+    if (!this.ctx || !this.buffer) return
     const beats = this.track.analysis.beats
     if (beatIndex < 0 || beatIndex >= beats.length) return
 

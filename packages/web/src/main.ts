@@ -208,8 +208,8 @@ function initializePlayer(): void {
 
 // ─── Playback controls ──────────────────────────────────────────────────────
 
-$playBtn.addEventListener('click', () => {
-  player.toggle()
+$playBtn.addEventListener('click', async () => {
+  await player.toggle()
   if (player.isPlaying()) {
     $playBtn.textContent = 'Pause'
     $playBtn.classList.add('playing')
