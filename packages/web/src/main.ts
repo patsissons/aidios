@@ -1,4 +1,4 @@
-import { uploadAndAnalyze } from './api'
+import { analyzeFile } from './api'
 import { prepareTrack, updateThreshold, applyBranchFilters, computeStats } from './jukebox'
 import { Visualization } from './visualization'
 import { Player } from './player'
@@ -149,7 +149,7 @@ async function handleFile(file: File): Promise<void> {
     // Start audio decode in parallel with server analysis
     const decodePromise = player.loadAudio(file)
 
-    analysis = await uploadAndAnalyze(file, (status) => {
+    analysis = await analyzeFile(file, (status) => {
       $progressText.textContent = status
       // Animate progress bar
       if (status.includes('Uploading')) {

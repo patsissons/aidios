@@ -1,7 +1,12 @@
-export { analyzeAudio, type AnalysisOptions } from './pipeline.ts'
-export { decodeAudio, type DecodedAudio, SAMPLE_RATE } from './decoder.ts'
-export { extractGlobalFeatures, type GlobalFeatures } from './globals.ts'
-export { detectOnsets, buildSegmentBoundaries } from './segments.ts'
-export { extractAllSegments } from './features.ts'
-export { detectSections } from './sections.ts'
-export { getEssentia, EssentiaWrapper } from './essentia.ts'
+/**
+ * Default entry point — Node.js.
+ *
+ * Re-exports everything from core (platform-agnostic) plus the Node-specific
+ * analyzeAudio() function for backward compatibility.
+ *
+ * For browser usage, import from '@aidios/analyzer/core' and
+ * '@aidios/analyzer/browser' instead.
+ */
+
+export * from './core.ts'
+export { analyzeAudio, type AnalysisOptions } from './node/index.ts'

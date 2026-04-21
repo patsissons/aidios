@@ -8,7 +8,7 @@
  */
 
 import type { Section } from '@aidios/types'
-import type { DecodedAudio } from './decoder.ts'
+import type { DecodedAudio } from './platform.ts'
 import type { GlobalFeatures } from './globals.ts'
 import { detectOnsets } from './segments.ts'
 

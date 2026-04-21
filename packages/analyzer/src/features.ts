@@ -6,8 +6,8 @@
  * At ~5ms per segment, 2287 segments ≈ ~15 seconds total.
  */
 
-import { SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
-import { getEssentia } from './essentia.ts'
+import { SAMPLE_RATE, type DecodedAudio } from './platform.ts'
+import { getEssentia } from './essentia-singleton.ts'
 import type { SegmentBoundary } from './segments.ts'
 import type { Segment } from '@aidios/types'
 

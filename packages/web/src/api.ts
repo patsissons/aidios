@@ -1,6 +1,51 @@
 import type { AudioAnalysis } from './types'
 
-export async function uploadAndAnalyze(
+const FORCE_BROWSER = import.meta.env.VITE_BROWSER_ANALYSIS === 'true'
+
+/**
+ * Analyze an audio file — auto-detects whether to use the server API
+ * or browser-based analysis.
+ *
+ * - In production builds (Vercel), always uses browser analysis.
+ * - In dev, tries the server first; falls back to browser if unavailable.
+ * - VITE_BROWSER_ANALYSIS=true forces browser mode.
+ */
+export async function analyzeFile(
+  file: File,
+  onProgress: (status: string) => void,
+): Promise<AudioAnalysis> {
+  if (FORCE_BROWSER || import.meta.env.PROD) {
+    const useBrowser = FORCE_BROWSER || !(await isServerAvailable())
+    if (useBrowser) {
+      return analyzeBrowser(file, onProgress)
+    }
+  }
+
+  return uploadAndAnalyze(file, onProgress)
+}
+
+async function analyzeBrowser(
+  file: File,
+  onProgress: (status: string) => void,
+): Promise<AudioAnalysis> {
+  onProgress('Preparing browser analysis...')
+  const { analyzeInBrowser } = await import('./browser-analyzer')
+  return analyzeInBrowser(file, onProgress)
+}
+
+async function isServerAvailable(): Promise<boolean> {
+  try {
+    // POST without a body — server returns 400 ("Missing audio file field")
+    // which confirms the server is there. A proxy timeout or connection
+    // refused means no server.
+    const res = await fetch('/analyze', { method: 'POST' })
+    return res.status === 400
+  } catch {
+    return false
+  }
+}
+
+async function uploadAndAnalyze(
   file: File,
   onProgress: (status: string) => void,
 ): Promise<AudioAnalysis> {

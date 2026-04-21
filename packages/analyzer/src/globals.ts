@@ -3,8 +3,8 @@
  * Extracts: beats, bars, tatums, key, mode, tempo, loudness, fade in/out
  */
 
-import { SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
-import { getEssentia } from './essentia.ts'
+import { SAMPLE_RATE, type DecodedAudio } from './platform.ts'
+import { getEssentia } from './essentia-singleton.ts'
 
 export const FADE_BLOCK = 512          // ~23ms at 22050Hz
 export const SILENCE_DB = -60          // threshold for fade detection

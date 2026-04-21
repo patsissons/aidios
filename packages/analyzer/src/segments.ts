@@ -5,8 +5,8 @@
  * Returns sorted array of onset times in seconds.
  */
 
-import { SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
-import { getEssentia } from './essentia.ts'
+import { SAMPLE_RATE, type DecodedAudio } from './platform.ts'
+import { getEssentia } from './essentia-singleton.ts'
 
 const CHUNK_SECS = 60        // max chunk size (WASM heap constraint)
 const OVERLAP_SECS = 1.0     // overlap between chunks to catch boundary onsets

@@ -1,12 +1,13 @@
 /**
- * Phase 8 — Full analysis pipeline
+ * Platform-agnostic analysis pipeline.
  *
  * Orchestrates all extractors to produce a complete AudioAnalysis JSON.
+ * Accepts an injected AudioDecoder — platform-specific code provides the
+ * appropriate implementation (Node ffmpeg or Browser Web Audio).
  */
 
-import { createHash } from 'node:crypto'
 import type { AudioAnalysis, TrackSummary, AnalysisMeta } from '@aidios/types'
-import { decodeAudio, RHYTHM_SAMPLE_RATE, type DecodedAudio } from './decoder.ts'
+import { RHYTHM_SAMPLE_RATE, type AudioDecoder, type DecodedAudio } from './platform.ts'
 import {
   extractGlobalFeatures,
   buildBeats, buildTatums, buildBars,
@@ -18,10 +19,10 @@ import { detectSections } from './sections.ts'
 
 const ANALYZER_VERSION = 'aidios-0.1.0'
 
-function buildMeta(analysisMs: number): AnalysisMeta {
+function buildMeta(analysisMs: number, platformLabel: string): AnalysisMeta {
   return {
     analyzer_version: ANALYZER_VERSION,
-    platform: `Node.js ${process.version}`,
+    platform: platformLabel,
     detailed_status: 'OK',
     status_code: 0,
     timestamp: Math.floor(Date.now() / 1000),
@@ -62,27 +63,38 @@ function buildTrack(audio: DecodedAudio, globals: GlobalFeatures): TrackSummary 
   }
 }
 
-export interface AnalysisOptions {
+export interface PipelineOptions {
   onsetThreshold?: number   // SuperFlux threshold for segments (default 0.05)
   logProgress?: boolean     // log phase timings to console
+  onProgress?: (message: string) => void  // progress callback (e.g. for Web Worker)
+  platformLabel?: string    // e.g. "Node.js v22.0.0" or "Browser"
 }
 
 /**
  * Full audio analysis pipeline.
- * Accepts a file path, returns AudioAnalysis JSON.
- * Typical runtime: ~75s for a 8-minute track.
+ * Accepts an AudioDecoder and source (file path, ArrayBuffer, etc.).
+ * Typical runtime: ~75s for an 8-minute track.
  */
-export async function analyzeAudio(
-  filePath: string,
-  opts: AnalysisOptions = {},
+export async function runPipeline<S>(
+  decoder: AudioDecoder<S>,
+  source: S,
+  opts: PipelineOptions = {},
 ): Promise<AudioAnalysis> {
-  const { onsetThreshold = 0.05, logProgress = false } = opts
+  const {
+    onsetThreshold = 0.05,
+    logProgress = false,
+    onProgress,
+    platformLabel = 'unknown',
+  } = opts
   const t0 = Date.now()
-  const log = logProgress ? (msg: string) => console.log(msg) : () => {}
+  const log = (msg: string) => {
+    if (logProgress) console.log(msg)
+    onProgress?.(msg)
+  }
 
   // Phase 1: Decode
   log('[1/6] Decoding audio...')
-  const audio = await decodeAudio(filePath)
+  const audio = await decoder.decode(source)
   log(`  Done: ${audio.duration.toFixed(1)}s, ${audio.numSamples.toLocaleString()} samples [${Date.now()-t0}ms]`)
 
   // Phase 2: Global features (beats, key, loudness, fades)
@@ -90,7 +102,7 @@ export async function analyzeAudio(
   const t2 = Date.now()
   const rhythmAudio = audio.sampleRate === RHYTHM_SAMPLE_RATE
     ? audio
-    : await decodeAudio(filePath, RHYTHM_SAMPLE_RATE)
+    : await decoder.decode(source, RHYTHM_SAMPLE_RATE)
   const globals = extractGlobalFeatures(audio, rhythmAudio)
   log(`  BPM: ${globals.bpm.toFixed(1)}, Key: ${globals.keyInt}/${globals.modeInt}, Beats: ${globals.beatTimes.length} [${Date.now()-t2}ms]`)
 
@@ -123,7 +135,7 @@ export async function analyzeAudio(
   log('[6/6] Assembling output...')
   const totalMs = Date.now() - t0
   const analysis: AudioAnalysis = {
-    meta: buildMeta(totalMs),
+    meta: buildMeta(totalMs, platformLabel),
     track: buildTrack(audio, globals),
     bars,
     beats,

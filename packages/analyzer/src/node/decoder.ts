@@ -1,20 +1,15 @@
+/**
+ * Node.js audio decoder — uses ffmpeg subprocess.
+ */
+
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
+import { SAMPLE_RATE, type AudioDecoder, type DecodedAudio } from '../platform.ts'
 
-export const SAMPLE_RATE = 22050
-export const RHYTHM_SAMPLE_RATE = 44100
 export const FFMPEG = process.env['FFMPEG_PATH'] ?? 'ffmpeg'
 
-export interface DecodedAudio {
-  data: Float32Array  // raw PCM samples at SAMPLE_RATE Hz mono
-  sampleRate: number  // always 22050
-  numSamples: number
-  duration: number    // seconds
-  md5: string         // hex MD5 of original file
-}
-
-export async function computeMd5(filePath: string): Promise<string> {
+async function computeMd5(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = createHash('md5')
     const stream = createReadStream(filePath)
@@ -29,7 +24,7 @@ export async function computeMd5(filePath: string): Promise<string> {
  * Uses ffmpeg — must be installed. Decodes entire file to memory.
  * maxBuffer supports up to ~15 minutes of audio (350MB).
  */
-export async function decodeAudio(
+async function decodeAudio(
   filePath: string,
   sampleRate = SAMPLE_RATE,
 ): Promise<DecodedAudio> {
@@ -70,5 +65,11 @@ export async function decodeAudio(
     numSamples,
     duration: numSamples / sampleRate,
     md5,
+  }
+}
+
+export class NodeDecoder implements AudioDecoder<string> {
+  async decode(filePath: string, sampleRate?: number): Promise<DecodedAudio> {
+    return decodeAudio(filePath, sampleRate)
   }
 }
