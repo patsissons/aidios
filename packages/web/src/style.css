@@ -127,6 +127,16 @@ main {
   position: relative;
 }
 
+.mobile-audio-warning {
+  display: none;
+  color: #8a9ab0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-align: center;
+  margin: 0.25rem auto 0.5rem;
+  max-width: 28rem;
+}
+
 .controls {
   display: flex;
   align-items: center;
@@ -174,9 +184,23 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
+#listen-time {
+  white-space: nowrap;
+}
+
 .separator {
   margin: 0 0.4rem;
   opacity: 0.4;
+}
+
+.beat-count-container {
+  white-space: nowrap;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .mobile-audio-warning {
+    display: block;
+  }
 }
 
 /* ─── Tune Panel ─────────────────────────────────────── */

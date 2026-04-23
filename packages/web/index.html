@@ -48,13 +48,17 @@
 
     <!-- Player state -->
     <section id="player-section" hidden>
+      <p class="mobile-audio-warning">Advanced audio stream playback may not be supported on all mobile browsers.</p>
+
       <div class="controls">
         <button id="play-btn" class="play-btn">Play</button>
         <button id="tune-btn" class="tune-btn">Tune</button>
         <div class="time-display">
           <span id="listen-time">00:00</span>
           <span class="separator">|</span>
-          <span id="beat-count">0</span> beats
+          <span class="beat-count-container">
+            <span id="beat-count">0</span> beats
+          </span>
         </div>
       </div>
 
