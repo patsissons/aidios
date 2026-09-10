@@ -102,6 +102,16 @@ Optional environment variables for the function:
 
 To pick up a new yt-dlp release, bump `YTDLP_VERSION` in `scripts/fetch-yt-dlp.mjs` and redeploy.
 
+### Deno Deploy (recommended for the YouTube fetcher)
+
+Vercel's AWS egress is refused by YouTube (see below), so the fetcher can run on [Deno Deploy](https://console.deno.com) instead, the same way bocodds relays blocked upstreams through a Deno app. `packages/ytaudio/deno/main.ts` is the entrypoint: it serves `GET /api/youtube` with CORS, downloads the pinned yt-dlp binary into the temp dir on first use (SHA-256 verified), and uses Deno itself as yt-dlp's JavaScript runtime. Deno Deploy runs apps with full permissions (subprocesses, file writes), so no build step is needed.
+
+1. console.deno.com → New App → this GitHub repo. Entrypoint `packages/ytaudio/deno/main.ts`, no install or build command.
+2. Environment variables (optional): `CORS_ORIGINS` (comma-separated site origins; default `*`), plus any of the `YTDLP_*` variables above.
+3. Set `VITE_YOUTUBE_API_BASE=https://<app>.deno.net` on the Vercel project and redeploy; the site then calls the Deno app instead of its own function. Leave it unset to keep using the Vercel function.
+
+Free tier (Sept 2026): 1M requests, 20 GiB egress, 10 active-CPU hours per month, 768 MB memory.
+
 #### YouTube's bot wall from Vercel
 
 Measured in September 2026 from Vercel functions in both `iad1` and `sfo1`: YouTube answered `LOGIN_REQUIRED` ("Sign in to confirm you're not a bot") on the player response for 7 of 8 test videos, on every player client tried (`visionos`, `web`, `web_embedded`, `android_vr`, `mweb`, `ios`, `android`). The refusal happens before any proof-of-origin token is consulted, so bundling the bgutil PO token provider (`POT_PROVIDER=1 npm run build`) did not help either. Switching regions did not help. The same binary succeeds on every video from a residential IP.

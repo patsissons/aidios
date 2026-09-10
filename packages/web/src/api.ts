@@ -1,6 +1,8 @@
 import type { AudioAnalysis } from './types'
 
 const FORCE_BROWSER = import.meta.env.VITE_BROWSER_ANALYSIS === 'true'
+/** Origin of the YouTube fetch service (e.g. a Deno Deploy app); empty = same origin. */
+const YOUTUBE_API_BASE = (import.meta.env.VITE_YOUTUBE_API_BASE ?? '').replace(/\/$/, '')
 
 /**
  * Analyze an audio file — auto-detects whether to use the server API
@@ -113,7 +115,7 @@ export async function fetchYouTubeAudio(
   const params = new URLSearchParams({ url })
   if (prefersM4a()) params.set('prefer', 'm4a')
 
-  const res = await fetch(`/api/youtube?${params}`)
+  const res = await fetch(`${YOUTUBE_API_BASE}/api/youtube?${params}`)
   if (!res.ok) {
     let msg = `YouTube fetch failed (${res.status})`
     try {

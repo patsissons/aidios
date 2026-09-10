@@ -11,7 +11,8 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { constants as FS } from 'node:fs'
-import { access, chmod, copyFile, readFile, stat, unlink, writeFile } from 'node:fs/promises'
+import { access, chmod, copyFile, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
@@ -89,6 +90,68 @@ export function parseVideoId(input: string): string {
 
 let resolved: string | null = null
 
+/** True when running under Deno (node: compat), e.g. on Deno Deploy. */
+const IS_DENO = typeof (globalThis as { Deno?: unknown }).Deno !== 'undefined'
+
+/**
+ * The JS runtime yt-dlp should use for YouTube's challenges: whatever is
+ * running us. Under Node that is process.execPath; under Deno the same path
+ * is the deno binary, which yt-dlp prefers anyway.
+ */
+function jsRuntimeArg(): string {
+  return `${IS_DENO ? 'deno' : 'node'}:${process.execPath}`
+}
+
+/** Pinned yt-dlp release used when no binary is found (YTDLP_VERSION overrides). */
+const YTDLP_VERSION = process.env['YTDLP_VERSION'] ?? '2026.08.19'
+
+function ytDlpAssetName(): string | null {
+  const key = `${process.platform}-${process.arch}`
+  return ({
+    'linux-x64': 'yt-dlp_linux',
+    'linux-arm64': 'yt-dlp_linux_aarch64',
+    'darwin-x64': 'yt-dlp_macos',
+    'darwin-arm64': 'yt-dlp_macos',
+  } as Record<string, string>)[key] ?? null
+}
+
+let downloading: Promise<string> | null = null
+
+/**
+ * Ephemeral fallback: fetch the pinned standalone binary into the temp dir,
+ * verifying it against the release's SHA2-256SUMS. Used on hosts that build
+ * from source (Deno Deploy) where nothing lays the binary down at build time.
+ * Disable with YTDLP_AUTO_DOWNLOAD=0.
+ */
+async function downloadYtDlp(): Promise<string> {
+  if (downloading) return downloading
+  downloading = (async () => {
+    const asset = ytDlpAssetName()
+    if (!asset) throw new YtError('unknown', `No yt-dlp binary for ${process.platform}-${process.arch}`)
+    const dest = join(tmpdir(), `yt-dlp-${YTDLP_VERSION}`)
+    if (await exists(dest)) {
+      await chmod(dest, 0o755).catch(() => {})
+      return dest
+    }
+    const base = `https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}`
+    console.log(`[ytaudio] downloading ${asset} ${YTDLP_VERSION} to ${dest}`)
+    const [sumsRes, binRes] = await Promise.all([fetch(`${base}/SHA2-256SUMS`), fetch(`${base}/${asset}`)])
+    if (!sumsRes.ok || !binRes.ok) throw new YtError('unknown', `yt-dlp download failed (${sumsRes.status}/${binRes.status})`)
+    const sums = await sumsRes.text()
+    const expected = sums.split('\n').map((l) => l.trim().split(/\s+\*?/)).find(([, name]) => name === asset)?.[0]
+    const buf = new Uint8Array(await binRes.arrayBuffer())
+    const actual = createHash('sha256').update(buf).digest('hex')
+    if (!expected || actual !== expected) throw new YtError('unknown', 'yt-dlp download checksum mismatch')
+    const tmp = `${dest}.part-${Math.random().toString(36).slice(2)}`
+    await writeFile(tmp, buf)
+    await chmod(tmp, 0o755)
+    await rename(tmp, dest)
+    return dest
+  })()
+  downloading.catch(() => { downloading = null })
+  return downloading
+}
+
 async function exists(p: string): Promise<boolean> {
   try {
     return (await stat(p)).isFile()
@@ -129,6 +192,11 @@ export async function resolveYtDlp(): Promise<string> {
     }
   }
 
+  if (process.env['YTDLP_AUTO_DOWNLOAD'] !== '0') {
+    const p = await downloadYtDlp()
+    console.log(`[ytaudio] using ${p} (downloaded)`)
+    return (resolved = p)
+  }
   throw new YtError('unknown', 'yt-dlp binary not found (run scripts/fetch-yt-dlp.mjs)')
 }
 
@@ -170,7 +238,7 @@ export function buildArgs(o: BuildArgsOpts): string[] {
     // first media byte without polluting stdout.
     '--print-to-file', 'before_dl:%(.{id,title,duration,ext,acodec,abr,filesize_approx})j', o.metaFile,
     // YouTube requires a JS runtime for challenge solving; reuse our own node.
-    '--js-runtimes', `node:${process.execPath}`,
+    '--js-runtimes', jsRuntimeArg(),
     // $HOME is read-only on Vercel.
     '--cache-dir', join(tmpdir(), 'yt-dlp-cache'),
     ...(youtubeArgs.length ? ['--extractor-args', `youtube:${youtubeArgs.join(';')}`] : []),
