@@ -16,6 +16,15 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// Opt-in: the provider adds ~69MB and a few seconds per request, and measured
+// from Vercel it did not clear YouTube's LOGIN_REQUIRED wall (the player
+// response is refused before any token is consulted). Set POT_PROVIDER=1 to
+// build it anyway, e.g. for hosts where it does help.
+if (process.env.POT_PROVIDER !== '1') {
+  console.log('fetch-pot-provider: skipped (set POT_PROVIDER=1 to bundle the PO token provider)')
+  process.exit(0)
+}
+
 const POT_VERSION = '2.0.0'
 const PLUGIN_ZIP_SHA256 = process.env.POT_PLUGIN_SHA256 ?? 'bce874dfa25896c2798e0f4f8147b7b22e785479eb1e459ab232bf2506c95016'
 

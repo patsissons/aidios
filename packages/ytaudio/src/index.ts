@@ -239,12 +239,14 @@ function childEnv(): NodeJS.ProcessEnv {
  * Player-client fallback chain. Each entry is one yt-dlp attempt; 'default'
  * means yt-dlp's own client selection. YouTube's "Sign in to confirm you're
  * not a bot" wall is enforced per client, and from datacenter IPs the default
- * clients are often refused. ios/android accept a player-context PO token
- * (supplied by the bundled provider with fetch_pot=always); web_embedded and
- * android_vr need no token at all. Override with
- * YTDLP_CLIENTS="default;ios,android;web_embedded,android_vr;mweb".
+ * clients are often refused; web_embedded and android_vr need no
+ * proof-of-origin token so they are worth one more try. Measured from Vercel
+ * (Sept 2026) every client got LOGIN_REQUIRED on the player response, so the
+ * only reliable fixes there are YTDLP_COOKIES_B64 or YTDLP_PROXY. ios/android
+ * were tried and return SABR-only formats with no direct URL, so they cannot
+ * stream to stdout. Override with YTDLP_CLIENTS="default;web_embedded,android_vr".
  */
-const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['ios', 'android'], ['web_embedded', 'android_vr'], ['mweb']]
+const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['web_embedded', 'android_vr']]
 const CLIENT_RE = /^[a-z_]+(,[a-z_]+)*$/
 
 export function clientChain(override?: string | null): string[][] {

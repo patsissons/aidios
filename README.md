@@ -102,6 +102,17 @@ Optional environment variables for the function:
 
 To pick up a new yt-dlp release, bump `YTDLP_VERSION` in `scripts/fetch-yt-dlp.mjs` and redeploy.
 
+#### YouTube's bot wall from Vercel
+
+Measured in September 2026 from Vercel functions in both `iad1` and `sfo1`: YouTube answered `LOGIN_REQUIRED` ("Sign in to confirm you're not a bot") on the player response for 7 of 8 test videos, on every player client tried (`visionos`, `web`, `web_embedded`, `android_vr`, `mweb`, `ios`, `android`). The refusal happens before any proof-of-origin token is consulted, so bundling the bgutil PO token provider (`POT_PROVIDER=1 npm run build`) did not help either. Switching regions did not help. The same binary succeeds on every video from a residential IP.
+
+What does work from a datacenter IP is proving an account or changing the IP:
+
+- `YTDLP_COOKIES_B64`: cookies from a signed-in YouTube session (use a throwaway account; YouTube may flag accounts used from datacenter IPs).
+- `YTDLP_PROXY`: a residential or mobile proxy URL.
+
+The function retries with `web_embedded,android_vr` before giving up; `?client=` overrides the chain and `?debug=1` returns the verbose yt-dlp log on errors, which is how the above was diagnosed.
+
 ## Tech stack
 
 - **Frontend**: Vite, vanilla TypeScript, Web Audio API, HTML5 Canvas
