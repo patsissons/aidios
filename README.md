@@ -8,7 +8,7 @@ An open-source recreation of the [Infinite Jukebox](http://infinitejukebox.playl
 
 ## How it works
 
-1. **Upload** an audio file (or pick a demo track)
+1. **Upload** an audio file, paste a YouTube URL, or pick a demo track
 2. **Analysis** extracts beats, tempo, key, timbre (MFCC), and pitch (HPCP) using [essentia.js](https://mtg.github.io/essentia.js/) WASM
 3. **Branching graph** connects beats that sound similar, finding transition points where the song can jump without the listener noticing
 4. **Infinite playback** follows the beat sequence, probabilistically branching at transition points to create an endless, always-varying remix
@@ -23,6 +23,9 @@ packages/
   server/      Hono API server for server-side analysis
   types/       Shared TypeScript type definitions
   web/         Vite frontend — visualization, playback, tuning UI
+  ytaudio/     yt-dlp wrapper that streams YouTube audio (Vercel function + dev server)
+scripts/
+  fetch-yt-dlp.mjs   Downloads the pinned yt-dlp binary into packages/web/bin/
 ```
 
 The analyzer uses a **platform facade** so the same DSP pipeline runs on both Node.js (using ffmpeg + CJS essentia.js) and in the browser (using Web Audio API + WASM essentia.js in a Web Worker).
@@ -42,6 +45,12 @@ npm run dev
 ```
 
 This starts both the Hono API server (port 3000) and the Vite dev server (port 5173). Open [http://localhost:5173](http://localhost:5173).
+
+### YouTube URLs
+
+Pasting a YouTube URL streams the video's best audio track through the backend (`GET /api/youtube?url=...`) and then runs the normal in-browser analysis. The backend shells out to a standalone [yt-dlp](https://github.com/yt-dlp/yt-dlp) binary that `npm run dev` and `npm run build` download automatically via `scripts/fetch-yt-dlp.mjs` (pinned version, SHA-256 verified, gitignored under `packages/web/bin/`). Videos longer than 15 minutes are rejected. Set `YTDLP_PATH` to use a different binary.
+
+Note that downloading YouTube audio is against YouTube's Terms of Service; this is intended for personal use.
 
 ### Browser-only mode
 
@@ -71,6 +80,27 @@ npm run build
 ```
 
 The `dist/` folder is ready to deploy. The app auto-detects whether a server is available and falls back to browser-based analysis.
+
+### Vercel
+
+The YouTube feature runs as a streaming Vercel Function (`packages/web/api/youtube.ts`, config in `packages/web/vercel.json`). It fits the Hobby plan: one function, 300s max duration, no storage. Project settings required:
+
+- **Root Directory**: `packages/web`
+- **Node.js Version**: 22.x
+- **Include source files outside of the Root Directory in the Build Step**: enabled (the function imports `packages/ytaudio` and the build runs `scripts/fetch-yt-dlp.mjs`)
+- **Fluid compute**: on (default)
+
+Optional environment variables for the function:
+
+| Variable | Purpose |
+|---|---|
+| `YTDLP_COOKIES_B64` | Base64 of a Netscape-format `cookies.txt`; helps when YouTube returns "Sign in to confirm you're not a bot" from datacenter IPs |
+| `YTDLP_PROXY` | Passed as `--proxy` |
+| `YTDLP_EXTRA_ARGS` | Extra yt-dlp flags, whitespace-separated (e.g. `--extractor-args youtube:player_client=tv`) |
+| `YTDLP_MAX_CONCURRENT` | Concurrent downloads per instance (default 2) |
+| `YTDLP_TIMEOUT_MS` | Hard kill deadline (default 280000) |
+
+To pick up a new yt-dlp release, bump `YTDLP_VERSION` in `scripts/fetch-yt-dlp.mjs` and redeploy.
 
 ## Tech stack
 
