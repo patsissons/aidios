@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node ../../scripts/fetch-yt-dlp.mjs && node ../../scripts/fetch-pot-provider.mjs && tsc -p ../ytaudio/tsconfig.build.json --outDir lib && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@aidios/analyzer": "*",
-    "@aidios/types": "*"
+    "@aidios/types": "*",
+    "@aidios/ytaudio": "*"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

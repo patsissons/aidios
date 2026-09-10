@@ -35,6 +35,11 @@
         <p>Drop an audio file here or click to select</p>
         <input type="file" id="file-input" accept="audio/*,video/*" />
       </div>
+      <form id="youtube-form" class="youtube-form" autocomplete="off">
+        <input type="url" id="youtube-url" placeholder="Or paste a YouTube URL" inputmode="url" required />
+        <button type="submit" id="youtube-btn" class="youtube-btn">Load</button>
+      </form>
+      <p id="youtube-error" class="youtube-error" hidden></p>
       <div class="demo-buttons">
         <span>Or try a demo:</span>
         <button class="demo-btn" data-demo="gangnam">Gangnam Style</button>

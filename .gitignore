@@ -4,3 +4,8 @@
 
 dist
 node_modules
+
+packages/web/bin/
+packages/web/lib/
+packages/web/plugins/
+packages/web/potserver/

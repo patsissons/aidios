@@ -75,7 +75,8 @@ main {
   font-size: 0.9rem;
 }
 
-.demo-btn {
+.demo-btn,
+.youtube-btn {
   background: #2a3a4a;
   border: 1px solid #3a5a6a;
   color: #7eb8da;
@@ -86,9 +87,45 @@ main {
   transition: background 0.2s, border-color 0.2s;
 }
 
-.demo-btn:hover {
+.demo-btn:hover,
+.youtube-btn:hover:not(:disabled) {
   background: #3a4a5a;
   border-color: #7eb8da;
+}
+
+.youtube-form {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.youtube-form input {
+  flex: 1;
+  min-width: 0;
+  background: #1a2a3a;
+  border: 1px solid #3a5a6a;
+  color: #cfe3f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.youtube-form input:focus {
+  outline: none;
+  border-color: #7eb8da;
+}
+
+.youtube-form button:disabled,
+.youtube-form input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.youtube-error {
+  margin-top: 0.75rem;
+  text-align: center;
+  color: #e55;
+  font-size: 0.9rem;
 }
 
 .progress-container {
