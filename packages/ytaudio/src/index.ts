@@ -152,6 +152,12 @@ export interface BuildArgsOpts {
 }
 
 export function buildArgs(o: BuildArgsOpts): string[] {
+  // All youtube:* extractor args must travel in one flag, ';'-separated.
+  const youtubeArgs: string[] = []
+  if (o.clients && o.clients.length) youtubeArgs.push(`player_client=${o.clients.join(',')}`)
+  // With a provider available, attach PO tokens to every context including the
+  // Innertube player request; that is the one datacenter IPs get LOGIN_REQUIRED on.
+  if (o.potServerDir) youtubeArgs.push('fetch_pot=always')
   return [
     `https://www.youtube.com/watch?v=${o.videoId}`,
     '-f', o.preferM4a ? 'ba[ext=m4a]/ba' : 'ba',
@@ -167,7 +173,7 @@ export function buildArgs(o: BuildArgsOpts): string[] {
     '--js-runtimes', `node:${process.execPath}`,
     // $HOME is read-only on Vercel.
     '--cache-dir', join(tmpdir(), 'yt-dlp-cache'),
-    ...(o.clients && o.clients.length ? ['--extractor-args', `youtube:player_client=${o.clients.join(',')}`] : []),
+    ...(youtubeArgs.length ? ['--extractor-args', `youtube:${youtubeArgs.join(';')}`] : []),
     ...(o.pluginDir ? ['--plugin-dirs', o.pluginDir] : []),
     ...(o.potServerDir ? ['--extractor-args', `youtubepot-bgutilscript:server_home=${o.potServerDir}`] : []),
     ...(o.cookiesFile ? ['--cookies', o.cookiesFile] : []),
@@ -233,11 +239,12 @@ function childEnv(): NodeJS.ProcessEnv {
  * Player-client fallback chain. Each entry is one yt-dlp attempt; 'default'
  * means yt-dlp's own client selection. YouTube's "Sign in to confirm you're
  * not a bot" wall is enforced per client, and from datacenter IPs the default
- * clients are often refused while web_embedded / android_vr / tv (which need
- * no proof-of-origin token) still work. Override with
- * YTDLP_CLIENTS="default;web_embedded,android_vr;tv".
+ * clients are often refused. ios/android accept a player-context PO token
+ * (supplied by the bundled provider with fetch_pot=always); web_embedded and
+ * android_vr need no token at all. Override with
+ * YTDLP_CLIENTS="default;ios,android;web_embedded,android_vr;mweb".
  */
-const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['web_embedded', 'android_vr'], ['mweb']]
+const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['ios', 'android'], ['web_embedded', 'android_vr'], ['mweb']]
 const CLIENT_RE = /^[a-z_]+(,[a-z_]+)*$/
 
 export function clientChain(override?: string | null): string[][] {
