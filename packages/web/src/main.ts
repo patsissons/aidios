@@ -1,4 +1,4 @@
-import { analyzeFile } from './api'
+import { analyzeFile, fetchYouTubeAudio } from './api'
 import { prepareTrack, updateThreshold, applyBranchFilters, computeStats } from './jukebox'
 import { Visualization } from './visualization'
 import { Player } from './player'
@@ -14,6 +14,10 @@ const $fileInput = document.getElementById('file-input') as HTMLInputElement
 const $progressContainer = document.getElementById('upload-progress')!
 const $progressBar = document.getElementById('progress-bar')!
 const $progressText = document.getElementById('progress-text')!
+const $youtubeForm = document.getElementById('youtube-form') as HTMLFormElement
+const $youtubeUrl = document.getElementById('youtube-url') as HTMLInputElement
+const $youtubeBtn = document.getElementById('youtube-btn') as HTMLButtonElement
+const $youtubeError = document.getElementById('youtube-error')!
 const $canvas = document.getElementById('viz-canvas') as HTMLCanvasElement
 const $playBtn = document.getElementById('play-btn')!
 const $tuneBtn = document.getElementById('tune-btn')!
@@ -100,8 +104,7 @@ document.querySelectorAll<HTMLButtonElement>('.demo-btn').forEach((btn) => {
 
 async function handleDemo(name: string): Promise<void> {
   $progressContainer.hidden = false
-  $uploadZone.style.display = 'none'
-  document.querySelector('.demo-buttons')?.setAttribute('style', 'display:none')
+  hideIngestUI()
 
   try {
     $progressText.textContent = 'Loading demo...'
@@ -137,13 +140,60 @@ async function handleDemo(name: string): Promise<void> {
   }
 }
 
+// ─── YouTube URL ────────────────────────────────────────────────────────────
+
+$youtubeForm.addEventListener('submit', (e) => {
+  e.preventDefault()
+  handleYouTubeUrl($youtubeUrl.value.trim())
+})
+
+async function handleYouTubeUrl(url: string): Promise<void> {
+  if (!url) return
+  setYouTubeBusy(true)
+  $youtubeError.hidden = true
+  $progressContainer.hidden = false
+  $progressText.style.color = ''
+  $progressText.textContent = 'Fetching audio from YouTube...'
+  $progressBar.style.setProperty('--progress', '5%')
+
+  try {
+    const file = await fetchYouTubeAudio(url, ({ received, total }) => {
+      const mb = (n: number) => `${(n / 1e6).toFixed(1)} MB`
+      $progressText.textContent = `Downloading ${mb(received)}${total ? ` / ${mb(total)}` : ''}...`
+      const pct = total ? 5 + Math.min(25, (25 * received) / total) : 15
+      $progressBar.style.setProperty('--progress', `${pct}%`)
+    })
+    // Same path as a dropped file: decode + analyze + start the player
+    await handleFile(file)
+  } catch (err) {
+    $youtubeError.textContent = err instanceof Error ? err.message : String(err)
+    $youtubeError.hidden = false
+    $progressContainer.hidden = true
+  } finally {
+    setYouTubeBusy(false)
+  }
+}
+
+function setYouTubeBusy(busy: boolean): void {
+  $youtubeBtn.disabled = busy
+  $youtubeUrl.disabled = busy
+  $youtubeBtn.textContent = busy ? 'Loading...' : 'Load'
+}
+
+function hideIngestUI(): void {
+  $uploadZone.style.display = 'none'
+  document.querySelector('.demo-buttons')?.setAttribute('style', 'display:none')
+  $youtubeForm.hidden = true
+  $youtubeError.hidden = true
+}
+
 // ─── File upload ─────────────────��──────────────────────────────��───────────
 
 async function handleFile(file: File): Promise<void> {
   audioFile = file
   $progressContainer.hidden = false
-  $uploadZone.style.display = 'none'
-  document.querySelector('.demo-buttons')?.setAttribute('style', 'display:none')
+  $progressText.style.color = ''
+  hideIngestUI()
 
   try {
     // Start audio decode in parallel with server analysis
