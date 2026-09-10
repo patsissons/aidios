@@ -8,5 +8,8 @@
       "maxDuration": 300,
       "includeFiles": "bin/**"
     }
-  }
+  },
+  "regions": [
+    "sfo1"
+  ]
 }
