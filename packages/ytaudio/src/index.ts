@@ -147,6 +147,8 @@ export interface BuildArgsOpts {
   cookiesFile?: string
   proxy?: string
   extraArgs?: string[]
+  /** Run yt-dlp with -v so stderr carries plugin/provider diagnostics. */
+  verbose?: boolean
 }
 
 export function buildArgs(o: BuildArgsOpts): string[] {
@@ -154,6 +156,7 @@ export function buildArgs(o: BuildArgsOpts): string[] {
     `https://www.youtube.com/watch?v=${o.videoId}`,
     '-f', o.preferM4a ? 'ba[ext=m4a]/ba' : 'ba',
     '-o', '-',
+    ...(o.verbose ? ['-v'] : []),
     '--no-progress',
     '--no-playlist',
     '--break-match-filters', `duration<=${MAX_DURATION_S}`,
@@ -370,6 +373,8 @@ export interface StreamOpts {
   signal?: AbortSignal
   /** Diagnostic override of the client chain, same syntax as YTDLP_CLIENTS. */
   clients?: string | null
+  /** Diagnostic: verbose yt-dlp and surface its stderr tail on errors. */
+  debug?: boolean
 }
 
 export interface StreamResult {
@@ -428,6 +433,7 @@ export async function streamYouTubeAudio(videoId: string, opts: StreamOpts = {})
     const proxy = process.env['YTDLP_PROXY']
     const extraArgs = extraArgsFromEnv()
     const pot = findPotProvider()
+    let debugTrail = ''
     if (!potLogged) {
       potLogged = true
       console.log(pot.potServerDir ? `[ytaudio] PO token provider: ${pot.potServerDir}` : '[ytaudio] PO token provider: not found')
@@ -436,7 +442,7 @@ export async function streamYouTubeAudio(videoId: string, opts: StreamOpts = {})
     for (let i = 0; i < chain.length; i++) {
       const clients = chain[i]!
       const metaFile = join(tmpdir(), `ytaudio-${videoId}-${Math.random().toString(36).slice(2)}.json`)
-      const args = buildArgs({ videoId, preferM4a: !!opts.preferM4a, metaFile, clients, cookiesFile, proxy, extraArgs, ...pot })
+      const args = buildArgs({ videoId, preferM4a: !!opts.preferM4a, metaFile, clients, cookiesFile, proxy, extraArgs, verbose: !!opts.debug, ...pot })
       const attempt = startAttempt(bin, args, metaFile, opts.signal)
 
       let meta: YtMeta
@@ -454,7 +460,9 @@ export async function streamYouTubeAudio(videoId: string, opts: StreamOpts = {})
         })
       } catch (e) {
         attempt.kill()
-        const err = e instanceof YtError ? e : new YtError('unknown', String(e))
+        const err0 = e instanceof YtError ? e : new YtError('unknown', String(e))
+        const err = new YtError(err0.kind, err0.message, [debugTrail, `--- attempt ${i + 1} client=${describeClients(clients)} ---`, err0.detail ?? ''].filter(Boolean).join('\n'))
+        debugTrail = err.detail ?? ''
         const last = i === chain.length - 1
         if (!last && retryable(err) && !opts.signal?.aborted) {
           console.warn(`[ytaudio] ${videoId}: ${err.kind} with client=${describeClients(clients)}, retrying with ${describeClients(chain[i + 1]!)}`)
@@ -502,10 +510,12 @@ export async function handleYouTubeRequest(req: Request): Promise<Response> {
   const q = new URL(req.url).searchParams
   try {
     const videoId = parseVideoId(q.get('url') ?? '')
+    const debug = q.get('debug') === '1'
     const { stream, meta, contentType, client, attempt } = await streamYouTubeAudio(videoId, {
       preferM4a: q.get('prefer') === 'm4a',
       signal: req.signal,
       clients: q.get('client'),
+      debug,
     })
 
     const ext = meta.ext || 'bin'
@@ -528,6 +538,9 @@ export async function handleYouTubeRequest(req: Request): Promise<Response> {
     const err = e instanceof YtError ? e : new YtError('unknown', e instanceof Error ? e.message : String(e))
     if (err.detail) console.error(`[ytaudio] ${err.kind}: ${err.detail.slice(-2000)}`)
     else console.error(`[ytaudio] ${err.kind}: ${err.message}`)
-    return Response.json({ error: err.message, kind: err.kind }, { status: STATUS[err.kind] })
+    const debug = new URL(req.url).searchParams.get('debug') === '1'
+    const body: Record<string, unknown> = { error: err.message, kind: err.kind }
+    if (debug && err.detail) body['detail'] = err.detail.slice(-12_000)
+    return Response.json(body, { status: STATUS[err.kind] })
   }
 }
