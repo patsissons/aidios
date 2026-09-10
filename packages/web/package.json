@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node ../../scripts/fetch-yt-dlp.mjs && tsc -p ../ytaudio/tsconfig.build.json --outDir lib && vite build",
+    "build": "node ../../scripts/fetch-yt-dlp.mjs && node ../../scripts/fetch-pot-provider.mjs && tsc -p ../ytaudio/tsconfig.build.json --outDir lib && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

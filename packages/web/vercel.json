@@ -6,7 +6,7 @@
   "functions": {
     "api/youtube.ts": {
       "maxDuration": 300,
-      "includeFiles": "bin/**"
+      "includeFiles": "{bin,plugins,potserver}/**"
     }
   },
   "regions": [

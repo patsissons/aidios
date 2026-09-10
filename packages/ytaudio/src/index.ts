@@ -12,8 +12,9 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { constants as FS } from 'node:fs'
 import { access, chmod, copyFile, readFile, stat, unlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 
 // ─── Errors ─────────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ const TOTAL_TIMEOUT_MS = Number(process.env['YTDLP_TIMEOUT_MS'] ?? 280_000)
 const META_TIMEOUT_MS = 60_000
 
 let active = 0
+let potLogged = false
 
 // ─── URL → video id ─────────────────────────────────────────────────────────
 
@@ -138,6 +140,10 @@ export interface BuildArgsOpts {
   metaFile: string
   /** yt-dlp player clients for this attempt; empty = yt-dlp default. */
   clients?: string[]
+  /** Directory holding the bgutil plugin zip, passed as --plugin-dirs. */
+  pluginDir?: string
+  /** Directory of the built bgutil token script (build/generate_once.js). */
+  potServerDir?: string
   cookiesFile?: string
   proxy?: string
   extraArgs?: string[]
@@ -159,6 +165,8 @@ export function buildArgs(o: BuildArgsOpts): string[] {
     // $HOME is read-only on Vercel.
     '--cache-dir', join(tmpdir(), 'yt-dlp-cache'),
     ...(o.clients && o.clients.length ? ['--extractor-args', `youtube:player_client=${o.clients.join(',')}`] : []),
+    ...(o.pluginDir ? ['--plugin-dirs', o.pluginDir] : []),
+    ...(o.potServerDir ? ['--extractor-args', `youtubepot-bgutilscript:server_home=${o.potServerDir}`] : []),
     ...(o.cookiesFile ? ['--cookies', o.cookiesFile] : []),
     ...(o.proxy ? ['--proxy', o.proxy] : []),
     ...(o.extraArgs ?? []),
@@ -185,6 +193,40 @@ function extraArgsFromEnv(): string[] {
 }
 
 /**
+ * Locate the optional bgutil PO-token provider laid down by
+ * scripts/fetch-pot-provider.mjs: a plugins/ dir with the plugin zip and a
+ * potserver/ dir with the compiled token script. Both are looked up relative
+ * to the same roots as the yt-dlp binary. Disable with YTDLP_POT=0.
+ */
+function findPotProvider(): { pluginDir?: string; potServerDir?: string } {
+  if (process.env['YTDLP_POT'] === '0') return {}
+  const roots = [process.cwd(), join(process.cwd(), 'packages', 'web')]
+  for (const r of roots) {
+    const pluginDir = join(r, 'plugins')
+    const potServerDir = join(r, 'potserver')
+    if (existsSync(join(pluginDir, 'bgutil-ytdlp-pot-provider.zip')) && existsSync(join(potServerDir, 'build', 'generate_once.js'))) {
+      return { pluginDir, potServerDir }
+    }
+  }
+  return {}
+}
+
+/**
+ * Environment for the yt-dlp child. The PO-token plugin shells out to `node`
+ * from PATH, which is not guaranteed inside a Vercel function, so the running
+ * runtime's directory is prepended. Caches go to the writable temp dir.
+ */
+function childEnv(): NodeJS.ProcessEnv {
+  const nodeDir = dirname(process.execPath)
+  return {
+    ...process.env,
+    PATH: [nodeDir, process.env['PATH'] ?? ''].filter(Boolean).join(delimiter),
+    XDG_CACHE_HOME: join(tmpdir(), 'ytaudio-cache'),
+    HOME: process.env['HOME'] && process.env['HOME'] !== '/' ? process.env['HOME'] : tmpdir(),
+  }
+}
+
+/**
  * Player-client fallback chain. Each entry is one yt-dlp attempt; 'default'
  * means yt-dlp's own client selection. YouTube's "Sign in to confirm you're
  * not a bot" wall is enforced per client, and from datacenter IPs the default
@@ -192,7 +234,7 @@ function extraArgsFromEnv(): string[] {
  * no proof-of-origin token) still work. Override with
  * YTDLP_CLIENTS="default;web_embedded,android_vr;tv".
  */
-const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['web_embedded', 'android_vr']]
+const DEFAULT_CLIENT_CHAIN: string[][] = [[], ['web_embedded', 'android_vr'], ['mweb']]
 const CLIENT_RE = /^[a-z_]+(,[a-z_]+)*$/
 
 export function clientChain(override?: string | null): string[][] {
@@ -349,7 +391,7 @@ interface Attempt {
 }
 
 function startAttempt(bin: string, args: string[], metaFile: string, signal?: AbortSignal): Attempt {
-  const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: true })
+  const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: true, env: childEnv() })
   let stderr = ''
   child.stderr!.on('data', (d: Buffer) => {
     stderr = (stderr + d.toString()).slice(-64_000)
@@ -385,11 +427,16 @@ export async function streamYouTubeAudio(videoId: string, opts: StreamOpts = {})
     const cookiesFile = await cookiesFromEnv()
     const proxy = process.env['YTDLP_PROXY']
     const extraArgs = extraArgsFromEnv()
+    const pot = findPotProvider()
+    if (!potLogged) {
+      potLogged = true
+      console.log(pot.potServerDir ? `[ytaudio] PO token provider: ${pot.potServerDir}` : '[ytaudio] PO token provider: not found')
+    }
 
     for (let i = 0; i < chain.length; i++) {
       const clients = chain[i]!
       const metaFile = join(tmpdir(), `ytaudio-${videoId}-${Math.random().toString(36).slice(2)}.json`)
-      const args = buildArgs({ videoId, preferM4a: !!opts.preferM4a, metaFile, clients, cookiesFile, proxy, extraArgs })
+      const args = buildArgs({ videoId, preferM4a: !!opts.preferM4a, metaFile, clients, cookiesFile, proxy, extraArgs, ...pot })
       const attempt = startAttempt(bin, args, metaFile, opts.signal)
 
       let meta: YtMeta
