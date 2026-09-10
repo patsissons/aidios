@@ -102,9 +102,9 @@ Optional environment variables for the function:
 
 To pick up a new yt-dlp release, bump `YTDLP_VERSION` in `scripts/fetch-yt-dlp.mjs` and redeploy.
 
-### Deno Deploy (recommended for the YouTube fetcher)
+### Deno Deploy
 
-Vercel's AWS egress is refused by YouTube (see below), so the fetcher can run on [Deno Deploy](https://console.deno.com) instead, the same way bocodds relays blocked upstreams through a Deno app. `packages/ytaudio/deno/main.ts` is the entrypoint: it serves `GET /api/youtube` with CORS, downloads the pinned yt-dlp binary into the temp dir on first use (SHA-256 verified), and uses Deno itself as yt-dlp's JavaScript runtime. Deno Deploy runs apps with full permissions (subprocesses, file writes), so no build step is needed.
+The fetcher can also run on [Deno Deploy](https://console.deno.com), the same way bocodds relays blocked upstreams through a Deno app. Measured in September 2026, Deno Deploy's egress (`ord`) is refused by YouTube exactly like Vercel's (1 of 10 test videos), so on its own it does not fix the bot wall below; it is still a fine host for the fetcher once `YTDLP_COOKIES_B64` or `YTDLP_PROXY` is set, with a larger free tier than a Vercel function. `packages/ytaudio/deno/main.ts` is the entrypoint: it serves `GET /api/youtube` with CORS, downloads the pinned yt-dlp binary into the temp dir on first use (SHA-256 verified), and uses Deno itself as yt-dlp's JavaScript runtime. Deno Deploy runs apps with full permissions (subprocesses, file writes), so no build step is needed.
 
 1. console.deno.com → New App → this GitHub repo. Entrypoint `packages/ytaudio/deno/main.ts`, no install or build command.
 2. Environment variables (optional): `CORS_ORIGINS` (comma-separated site origins; default `*`), plus any of the `YTDLP_*` variables above.
