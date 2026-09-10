@@ -24,7 +24,7 @@
  */
 import { handleYouTubeRequest } from '../src/index.ts'
 
-const ALLOWED_ORIGINS = (Deno.env.get('CORS_ORIGINS') ?? '*').split(',').map((s) => s.trim()).filter(Boolean)
+const ALLOWED_ORIGINS = (Deno.env.get('CORS_ORIGINS') ?? '*').split(',').map((s: string) => s.trim()).filter(Boolean)
 const EXPOSED = 'Content-Type, X-Video-Id, X-Title, X-Duration, X-Filesize-Approx, X-Yt-Client, X-Yt-Attempt'
 
 function cors(req: Request, res: Response): Response {
