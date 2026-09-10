@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
-    "lib": ["deno.ns", "deno.window"],
+    "lib": [
+      "deno.ns",
+      "deno.window"
+    ],
     "strict": true
   },
-  "nodeModulesDir": "none",
   "tasks": {
     "serve": "deno run -A deno/main.ts",
     "check": "deno check deno/main.ts"
