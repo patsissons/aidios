@@ -6,3 +6,4 @@ dist
 node_modules
 
 packages/web/bin/
+packages/web/lib/
