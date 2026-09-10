@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { analyzeAudio } from '@aidios/analyzer'
 import { createJob, getJob, saveTempFile, runJob, hashBuffer, getCachedAnalysis } from './queue.ts'
+import { handleYouTubeRequest } from '@aidios/ytaudio'
 
 const app = new Hono()
 
@@ -51,6 +52,9 @@ app.get('/analyze/:id', (c) => {
   }
   return c.json({ id: job.id, status: job.status })
 })
+
+// GET /api/youtube?url=...&prefer=m4a — stream YouTube audio (same handler as the Vercel function)
+app.get('/api/youtube', (c) => handleYouTubeRequest(c.req.raw))
 
 // Health check
 app.get('/', (c) => c.json({ service: 'aidios', status: 'ok' }))
